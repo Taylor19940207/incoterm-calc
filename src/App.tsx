@@ -98,7 +98,7 @@ const dict = {
     r_vat: "VAT/GST",
   },
   ja: {
-    title: "国際貿易見積計算機（EXW / FOB / CFR / CIF / DAP / DDP）",
+    title: "外国貿易における取引条件見積（EXW / FOB / CFR / CIF / DAP / DDP）",
     reset: "サンプルにリセット",
     params: "基本パラメータ",
     currency: "通貨",
@@ -209,8 +209,8 @@ interface Inputs {
 const defaultInputs: Inputs = {
   currency: "JPY",
   qty: 30000,
-  supplierTerm: "EXW",
-  supplierUnitPrice: 50,
+  supplierTerm: "FOB",
+  supplierUnitPrice: 100,
   inlandToPort: 5,
   exportDocsClearance: 5000, // 預設每票 5000 JPY
   numOfShipments: 1, // 預設一票
@@ -224,7 +224,7 @@ const defaultInputs: Inputs = {
   vatPct: 10,
   miscPerUnit: 1,
   bankFeePct: 0.6,
-  targetTerm: "DDP",
+  targetTerm: "FOB",
   pricingMode: "markup",
   markupPct: 15,
   marginPct: 12,
@@ -259,7 +259,7 @@ export default function IncotermQuoteCalculator() {
       return saved ? { ...defaultInputs, ...JSON.parse(saved) } : defaultInputs;
     } catch { return defaultInputs; }
   });
-  const [lang, setLang] = useState<Lang>("zh");
+  const [lang, setLang] = useState<Lang>("ja");
   const t = dict[lang];
 
   useEffect(() => { localStorage.setItem("incoterm_calc_v4.3", JSON.stringify(inputs)); }, [inputs]);
@@ -575,7 +575,7 @@ export default function IncotermQuoteCalculator() {
                   value={inputs.rounding}
                   onChange={(e) => update({ rounding: Number(e.target.value) })}
                 >
-                  <option value="0.01">0.01</option>
+                  value={String(inputs.rounding)}
                   <option value="0.1">0.1</option>
                   <option value="1">1</option>
                   <option value="10">10</option>

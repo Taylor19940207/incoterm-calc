@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-// 🧮 國際貿易報價計算器（v4.3 - 修正報關費用邏輯）
-// - 多語：中文/日本語
-// - 輸入模式：每單位 / 整票總額（自動 /qty 換算）
-// - 三方責任面板（工廠/出口商/進口商）會依 供應商條件→我的報價條件 自動標示誰負責
-// - EXW→FOB 段（內陸、出口報關、起運港費）在報價條件≥FOB 時 **可輸入**，並標示是否「計入成本」
-// - 修正：報關費用（exportDocsClearance）按每票計算，新增票數輸入
-// - 修正：destPortFees 在 DAP/DDP 下計入出口商責任；稅費基數可選納入 destPortFees/importBroker
-// - 修正：邊界檢查（負數、qty min=1）
+// 🧮 國際貿易報價計算器（v4.4 - 多品項上半部）
+// - 上半部改為：貨幣（獨立一行）→「商品數量」→ 依數字自動產生 N 列（商品1/2/...：數量、單價）
+// - 總數量 = 各商品數量加總；供應商單價 = 加權平均（Σ qty×單價 / Σ qty）
+// - 當 productCount > 1 時，原本「數量、供應商單價」顯示為自動計算，不再手動輸入
+// - 右側成本邏輯維持不變（僅改用合計數量與加權平均單價）
 
 const TERMS = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"] as const;
 type Term = typeof TERMS[number];
@@ -24,6 +21,8 @@ const dict = {
     reset: "重置為範例",
     params: "基本參數",
     currency: "貨幣",
+    productCount: "商品數量",
+    product: (i: number) => `商品 ${i}`,
     qty: "數量（單位）",
     supplierTerm: "供應商條件",
     supplierUnitPrice: "供應商單價（每單位）",
@@ -36,6 +35,7 @@ const dict = {
     total: "整票總額（自動/數量）",
     bankFee: "銀行費/匯損 %",
     rounding: "四捨五入粒度",
+    // 右側
     costParamsUnit: "費用參數（每單位）",
     costParamsTotal: "費用參數（整票總額 → 自動換算每單位）",
     hintPath: (from: Term, to: Term) => `系統會依 ${from}→${to} 的路徑自動啟用需要的費用；灰色代表在該條件下不適用。`,
@@ -55,6 +55,7 @@ const dict = {
     includeNote: "將計入成本",
     supplierCovered: "供應商段（預設不計入）",
     notApplicable: "此條件下不適用",
+    // 結果
     results: "計算結果",
     unitQuote: "建議報價/單",
     costPerUnit: "成本/單",
@@ -102,6 +103,8 @@ const dict = {
     reset: "サンプルにリセット",
     params: "基本パラメータ",
     currency: "通貨",
+    productCount: "商品数",
+    product: (i: number) => `商品 ${i}`,
     qty: "数量（単位）",
     supplierTerm: "仕入条件",
     supplierUnitPrice: "仕入単価（1単位あたり）",
@@ -114,6 +117,7 @@ const dict = {
     total: "総額入力（数量で自動換算）",
     bankFee: "銀行手数料/為替損 %",
     rounding: "丸め単位",
+    // 右側
     costParamsUnit: "費用パラメータ（単位あたり）",
     costParamsTotal: "費用パラメータ（総額入力 → 自動換算）",
     hintPath: (from: Term, to: Term) => `システムは ${from}→${to} の経路に応じて必要な費用のみ有効化。グレーは当該条件では不要。`,
@@ -125,7 +129,7 @@ const dict = {
     insuranceRate: "保険料率 %",
     destPort: "到着港費用（THC/D-O）",
     importBroker: "輸入通関/代行",
-    lastMile: "ラストマイル配送（指定地まで）",
+    lastMile: "最終配送（指定地まで）",
     misc: "雑費/資材/保管/ラベル等",
     duty: "関税 %",
     vat: "VAT/GST %",
@@ -133,6 +137,7 @@ const dict = {
     includeNote: "コストに計上",
     supplierCovered: "仕入側の区間（計上しない）",
     notApplicable: "当条件では不要",
+    // 結果
     results: "計算結果",
     unitQuote: "推奨単価",
     costPerUnit: "コスト/単位",
@@ -178,14 +183,23 @@ const dict = {
 } as const;
 
 // === 型別 ===
+type Product = { qty: number; price: number };
+
 interface Inputs {
   currency: string;
+  // 單品模式用；多品項時會被覆蓋為合計/加權平均
   qty: number;
   supplierTerm: Term;
   supplierUnitPrice: number;
+
+  // 多品項控制
+  productCount: number;
+  products: Product[];
+
+  // 右側費用
   inlandToPort: number;
-  exportDocsClearance: number; // 每票報關費用
-  numOfShipments: number; // 報關單數量
+  exportDocsClearance: number;
+  numOfShipments: number;
   originPortFees: number;
   mainFreight: number;
   insuranceRatePct: number;
@@ -208,21 +222,25 @@ interface Inputs {
 
 const defaultInputs: Inputs = {
   currency: "JPY",
-  qty: 30000,
+  qty: 0, // 單品模式時可用；多品項會覆蓋
   supplierTerm: "FOB",
-  supplierUnitPrice: 100,
-  inlandToPort: 5,
-  exportDocsClearance: 5000, // 預設每票 5000 JPY
-  numOfShipments: 1, // 預設一票
-  originPortFees: 4,
-  mainFreight: 6,
-  insuranceRatePct: 0.5,
-  destPortFees: 4,
-  importBroker: 2,
-  lastMileDelivery: 8,
-  dutyPct: 7.5,
-  vatPct: 10,
-  miscPerUnit: 1,
+  supplierUnitPrice: 0,
+
+  productCount: 1,
+  products: [{ qty: 0, price: 0 }],
+
+  inlandToPort: 0,
+  exportDocsClearance: 0,
+  numOfShipments: 0,
+  originPortFees: 0,
+  mainFreight: 0,
+  insuranceRatePct: 0,
+  destPortFees: 0,
+  importBroker: 0,
+  lastMileDelivery: 0,
+  dutyPct: 0,
+  vatPct: 0,
+  miscPerUnit: 0,
   bankFeePct: 0.6,
   targetTerm: "FOB",
   pricingMode: "markup",
@@ -231,7 +249,7 @@ const defaultInputs: Inputs = {
   rounding: 1,
   inputMode: "perUnit",
   includeBrokerInTaxBase: false,
-  exportDocsMode: "total", // 報關費預設固定總額（按票）
+  exportDocsMode: "total",
 };
 
 function segmentsToAdd(from: Term, to: Term) {
@@ -255,61 +273,91 @@ const perUnitFields = new Set([
 export default function IncotermQuoteCalculator() {
   const [inputs, setInputs] = useState<Inputs>(() => {
     try {
-      const saved = localStorage.getItem("incoterm_calc_v4.3");
+      const saved = localStorage.getItem("incoterm_calc_v4.4");
       return saved ? { ...defaultInputs, ...JSON.parse(saved) } : defaultInputs;
     } catch { return defaultInputs; }
   });
-  const [lang, setLang] = useState<Lang>("ja");
+  const [lang, setLang] = useState<Lang>("zh");
   const t = dict[lang];
 
-  useEffect(() => { localStorage.setItem("incoterm_calc_v4.3", JSON.stringify(inputs)); }, [inputs]);
+  useEffect(() => { localStorage.setItem("incoterm_calc_v4.4", JSON.stringify(inputs)); }, [inputs]);
   const update = (patch: Partial<Inputs>) => setInputs((p) => ({ ...p, ...patch }));
 
-  const segs = useMemo(() => segmentsToAdd(inputs.supplierTerm, inputs.targetTerm), [inputs.supplierTerm, inputs.targetTerm]);
+  // 認定的合計數量 / 加權平均單價（多品項優先）
+  const derived = useMemo(() => {
+    const count = Math.max(1, inputs.productCount || 1);
+    const items = (inputs.products || []).slice(0, count);
+    const sumQty = items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+    const sumVal = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+    const qty = (inputs.productCount > 1) ? sumQty : (Number(inputs.qty) || 0);
+    const unit = (inputs.productCount > 1)
+      ? (sumQty > 0 ? sumVal / sumQty : 0)
+      : (Number(inputs.supplierUnitPrice) || 0);
+    return { qty, unit, sumQty, sumVal };
+  }, [inputs.productCount, inputs.products, inputs.qty, inputs.supplierUnitPrice]);
 
-  // 以輸入模式決定顯示值與寫回方式，加強負數檢查
+  const segs = useMemo(
+    () => segmentsToAdd(inputs.supplierTerm, inputs.targetTerm),
+    [inputs.supplierTerm, inputs.targetTerm],
+  );
+
+  // 以輸入模式決定顯示值與寫回方式（用合計 qty）
   const getDisplayValue = (name: keyof Inputs) => {
-    const val = Number(inputs[name] as any) || 0;
+    const val = Number((inputs as any)[name]) || 0;
+    // 報關費顯示總額
     if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
-      return (val * Math.max(1, inputs.numOfShipments)).toString(); // 顯示總報關費用
+      const per = Number(inputs.exportDocsClearance) || 0;
+      return String(per * Math.max(0, inputs.numOfShipments || 0));
     }
+    if (name === "qty") return String(derived.qty); // 以合計數量顯示
+    // 右側若是「整票模式」，以合計 qty 做換算
     if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
-      return (val * Math.max(1, inputs.qty)).toString();
+      return String(val * Math.max(1, derived.qty || 1));
     }
-    return val.toString();
+    return String(val);
   };
+
   const setFromDisplay = (name: keyof Inputs, raw: string) => {
     const num = Number(raw);
     if (Number.isNaN(num) || num < 0) return;
-    if (name === "qty" && num < 1) return;
-    if (name === "numOfShipments" && num < 1) return;
+
+    if (name === "numOfShipments") {
+      update({ numOfShipments: Math.max(0, Math.floor(num)) });
+      return;
+    }
     if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
-      const perShipment = num / Math.max(1, inputs.numOfShipments);
-      update({ [name]: perShipment } as any);
-    } else if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
-      const perUnit = num / Math.max(1, inputs.qty);
+      const perShipment = (inputs.numOfShipments || 0) > 0 ? (num / inputs.numOfShipments) : 0;
+      update({ exportDocsClearance: perShipment });
+      return;
+    }
+    if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
+      const perUnit = num / Math.max(1, derived.qty || 1);
       update({ [name]: perUnit } as any);
-    } else { update({ [name]: num } as any); }
+      return;
+    }
+    update({ [name]: num } as any);
   };
 
-  // 計算邏輯
+  // 調整商品列數
+  const applyProductCount = (n: number) => {
+    const count = Math.max(1, Math.floor(n));
+    const arr = [...(inputs.products || [])];
+    if (arr.length < count) {
+      while (arr.length < count) arr.push({ qty: 0, price: 0 });
+    } else if (arr.length > count) {
+      arr.length = count;
+    }
+    update({ productCount: count, products: arr });
+  };
+
+  // 計算邏輯（用 derived.qty / derived.unit）
   const calc = useMemo(() => {
-    const q = Math.max(1, Number(inputs.qty) || 1);
-    const baseGoods = Number(inputs.supplierUnitPrice) || 0;
+    const q = Math.max(1, Number(derived.qty) || 1);
+    const baseGoods = Number(derived.unit) || 0;
     const sTerm = inputs.supplierTerm;
     const tTerm = inputs.targetTerm;
-    let add: {
-      inlandToPort: boolean;
-      originPortFees: boolean;
-      exportDocs: boolean;
-      mainFreight: boolean;
-      insurance: boolean;
-      destPortFees: boolean;
-      importBroker: boolean;
-      lastMile: boolean;
-      duty: boolean;
-      vat: boolean;
-    } = {
+
+    let add = {
       inlandToPort: false,
       originPortFees: false,
       exportDocs: false,
@@ -334,18 +382,25 @@ export default function IncotermQuoteCalculator() {
 
     const inlandToPort = add.inlandToPort ? (inputs.inlandToPort || 0) : 0;
     const originPortFees = add.originPortFees ? (inputs.originPortFees || 0) : 0;
-    const exportDocsClearanceTotal = add.exportDocs ? (inputs.exportDocsClearance || 0) * Math.max(1, inputs.numOfShipments || 1) : 0; // 總報關費用
-    const exportDocsClearance = exportDocsClearanceTotal / q; // 均攤到每單位
+
+    const exportDocsClearanceTotal =
+      add.exportDocs ? (inputs.exportDocsClearance || 0) * Math.max(0, inputs.numOfShipments || 0) : 0;
+    const exportDocsClearance = exportDocsClearanceTotal / q;
+
     const mainFreight = add.mainFreight ? (inputs.mainFreight || 0) : 0;
-    let insuranceBase = baseGoods + inlandToPort + originPortFees + mainFreight;
+
+    const insuranceBase = baseGoods + inlandToPort + originPortFees + mainFreight;
     const insurancePU = add.insurance ? (insuranceBase * ((inputs.insuranceRatePct || 0) / 100)) : 0;
+
     const destPortFees = add.destPortFees ? (inputs.destPortFees || 0) : 0;
     const importBroker = add.importBroker ? (inputs.importBroker || 0) : 0;
     const lastMileDelivery = add.lastMile ? (inputs.lastMileDelivery || 0) : 0;
+
     let cifBase = baseGoods + inlandToPort + originPortFees + exportDocsClearance + mainFreight + insurancePU;
     if (inputs.includeBrokerInTaxBase) {
       cifBase += destPortFees + importBroker;
     }
+
     const dutyPerUnit = add.duty ? cifBase * ((inputs.dutyPct || 0) / 100) : 0;
     const vatPerUnit = add.vat ? (cifBase + dutyPerUnit) * ((inputs.vatPct || 0) / 100) : 0;
     const miscPerUnit = inputs.miscPerUnit || 0;
@@ -360,7 +415,7 @@ export default function IncotermQuoteCalculator() {
     const need_CIF_to_DAP = idx(tTerm) >= idx("DAP");
     const need_DAP_to_DDP = idx(tTerm) >= idx("DDP");
 
-    let costPerUnit =
+    const costPerUnit =
       baseGoods +
       inlandToPort +
       exportDocsClearance +
@@ -383,7 +438,7 @@ export default function IncotermQuoteCalculator() {
         ? costWithBank * (1 + (inputs.markupPct || 0) / 100)
         : costWithBank / Math.max(1e-9, 1 - (inputs.marginPct || 0) / 100);
 
-    const unitQuote = roundTo(rawUnitQuote, Math.max(0.01, inputs.rounding || 1));
+    const unitQuote = roundTo(rawUnitQuote, Math.max(0.1, inputs.rounding || 1));
     const unitProfit = unitQuote - costPerUnit - unitQuote * bankRate;
     const profitMargin = unitQuote > 0 ? unitProfit / unitQuote : 0;
 
@@ -409,14 +464,15 @@ export default function IncotermQuoteCalculator() {
       totalQuote: unitQuote * q,
       totalProfit: unitProfit * q,
       q,
+      baseGoods,
     };
-  }, [inputs]);
+  }, [inputs, derived.qty, derived.unit]);
 
   const labelCurrency = (n: number) => `${inputs.currency} ${n.toLocaleString()}`;
   const labelPct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
   const unitFor = (name: keyof Inputs) => {
-    if (name === "qty" || name === "numOfShipments") return "";
+    if (name === "qty" || name === "numOfShipments" || name === "productCount") return "";
     if (
       name === "insuranceRatePct" ||
       name === "dutyPct" ||
@@ -428,6 +484,7 @@ export default function IncotermQuoteCalculator() {
     return inputs.currency;
   };
 
+  // 共用數字欄位
   const field = (
     name: keyof Inputs,
     label: string,
@@ -453,7 +510,7 @@ export default function IncotermQuoteCalculator() {
     </div>
   );
 
-  // === 責任對照計算 ===
+  // === 責任對照 ===
   type Owner = "factory" | "exporter" | "importer";
   const responsibilities = [
     { key: "r_inland", step: idx("FOB") },
@@ -474,21 +531,11 @@ export default function IncotermQuoteCalculator() {
       return "factory";
     }
     if (rkey === "r_export") return "exporter";
-    if (rkey === "r_freight") {
-      return idx(inputs.targetTerm) >= idx("CFR") ? "exporter" : "importer";
-    }
-    if (rkey === "r_insurance") {
-      return idx(inputs.targetTerm) >= idx("CIF") ? "exporter" : "importer";
-    }
-    if (rkey === "r_dest" || rkey === "r_lastmile") {
-      return idx(inputs.targetTerm) >= idx("DAP") ? "exporter" : "importer";
-    }
-    if (rkey === "r_import") {
-      return inputs.targetTerm === "DDP" ? "exporter" : "importer";
-    }
-    if (rkey === "r_duty" || rkey === "r_vat") {
-      return inputs.targetTerm === "DDP" ? "exporter" : "importer";
-    }
+    if (rkey === "r_freight") return idx(inputs.targetTerm) >= idx("CFR") ? "exporter" : "importer";
+    if (rkey === "r_insurance") return idx(inputs.targetTerm) >= idx("CIF") ? "exporter" : "importer";
+    if (rkey === "r_dest" || rkey === "r_lastmile") return idx(inputs.targetTerm) >= idx("DAP") ? "exporter" : "importer";
+    if (rkey === "r_import") return inputs.targetTerm === "DDP" ? "exporter" : "importer";
+    if (rkey === "r_duty" || rkey === "r_vat") return inputs.targetTerm === "DDP" ? "exporter" : "importer";
     return "importer";
   };
 
@@ -510,26 +557,104 @@ export default function IncotermQuoteCalculator() {
         </header>
 
         <div className="grid gap-6 lg:grid-cols-3">
+          {/* 基本參數（上半部） */}
           <section className="lg:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">{t.params}</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-gray-600">{t.currency}</label>
-                <select
-                  className="w-full rounded-2xl border px-3 py-2"
-                  value={inputs.currency}
-                  onChange={(e) => update({ currency: e.target.value })}
-                >
-                  <option value="JPY">JPY</option>
-                  <option value="USD">USD</option>
-                  <option value="CNY">CNY</option>
-                  <option value="EUR">EUR</option>
-                  <option value="TWD">TWD</option>
-                </select>
-              </div>
-              {field("qty", t.qty, { step: 1, min: 1 })}
+
+            {/* 貨幣（獨立一行） */}
+            <div className="mb-3">
+              <label className="text-sm text-gray-600">{t.currency}</label>
+              <select
+                className="mt-1 w-full rounded-2xl border px-3 py-2"
+                value={inputs.currency}
+                onChange={(e) => update({ currency: e.target.value })}
+              >
+                <option value="JPY">JPY</option>
+                <option value="USD">USD</option>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="TWD">TWD</option>
+              </select>
             </div>
 
+            {/* 商品數量控制 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.productCount}</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="w-full rounded-2xl border px-3 py-2"
+                  value={inputs.productCount}
+                  onChange={(e) => applyProductCount(Number(e.target.value))}
+                />
+              </div>
+
+              {/* 合計數量（自動顯示） */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.qty}</label>
+                <input
+                  type="number"
+                  className="w-full rounded-2xl border px-3 py-2 bg-gray-100 text-gray-500"
+                  value={derived.qty}
+                  disabled
+                />
+              </div>
+            </div>
+
+            {/* 動態商品列：商品 i → 數量、單價 */}
+            <div className="mt-4 space-y-3">
+              {Array.from({ length: inputs.productCount || 1 }).map((_, i) => {
+                const item = inputs.products[i] || { qty: 0, price: 0 };
+                return (
+                  <div key={i} className="rounded-xl border p-3">
+                    <div className="mb-2 text-sm font-medium">{t.product(i + 1)}</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* 數量 */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-gray-500">{t.qty}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-full rounded-2xl border px-3 py-2"
+                          value={item.qty}
+                          onChange={(e) => {
+                            const arr = [...inputs.products];
+                            arr[i] = { ...item, qty: Math.max(0, Math.floor(Number(e.target.value) || 0)) };
+                            update({ products: arr });
+                          }}
+                        />
+                      </div>
+                      {/* 單價 */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-gray-500">{t.supplierUnitPrice}</label>
+                        <div className="flex">
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            className="min-w-0 flex-1 rounded-l-2xl border px-3 py-2"
+                            value={item.price}
+                            onChange={(e) => {
+                              const arr = [...inputs.products];
+                              arr[i] = { ...item, price: Math.max(0, Number(e.target.value) || 0) };
+                              update({ products: arr });
+                            }}
+                          />
+                          <span className="shrink-0 rounded-r-2xl border border-l-0 bg-gray-100 px-3 py-2 text-sm text-gray-600">
+                            {inputs.currency}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 供應商條件 / 我的報價條件 / 定價模式 */}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-sm text-gray-600">{t.supplierTerm}</label>
@@ -537,25 +662,24 @@ export default function IncotermQuoteCalculator() {
                   {TERMS.map((term) => (<option key={term} value={term}>{term}</option>))}
                 </select>
               </div>
-              {field("supplierUnitPrice", t.supplierUnitPrice)}
-            </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-sm text-gray-600">{t.targetTerm}</label>
                 <select className="w-full rounded-2xl border px-3 py-2" value={inputs.targetTerm} onChange={(e) => update({ targetTerm: e.target.value as Term })}>
                   {TERMS.map((term) => (<option key={term} value={term}>{term}</option>))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-gray-600">{t.pricingMode}</label>
-                <select className="w-full rounded-2xl border px-3 py-2" value={inputs.pricingMode} onChange={(e) => update({ pricingMode: e.target.value as any })}>
-                  <option value="markup">{t.markup}</option>
-                  <option value="margin">{t.margin}</option>
-                </select>
-              </div>
             </div>
 
+            {/* 當只有 1 個商品時，保留手動輸入單價/數量（兼容單品情境） */}
+            {inputs.productCount <= 1 && (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {field("qty", t.qty, { step: 1, min: 0 })}
+                {field("supplierUnitPrice", t.supplierUnitPrice)}
+              </div>
+            )}
+
+            {/* 價格模式 + 輸入模式 + 其它 */}
             <div className="mt-3 flex items-center gap-3">
               <span className="text-sm text-gray-600">{t.inputMode}：</span>
               <div className="flex items-center gap-2">
@@ -565,25 +689,32 @@ export default function IncotermQuoteCalculator() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {field("markupPct", t.markup, { disabled: inputs.pricingMode !== "markup" })}
-              {field("marginPct", t.margin, { disabled: inputs.pricingMode !== "margin" })}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.pricingMode}</label>
+                <select className="w-full rounded-2xl border px-3 py-2" value={inputs.pricingMode} onChange={(e) => update({ pricingMode: e.target.value as any })}>
+                  <option value="markup">{t.markup}</option>
+                  <option value="margin">{t.margin}</option>
+                </select>
+              </div>
               {field("bankFeePct", t.bankFee)}
               <div className="flex flex-col gap-1">
                 <label className="text-sm text-gray-600">{t.rounding}</label>
                 <select
                   className="w-full rounded-2xl border px-3 py-2"
-                  value={inputs.rounding}
+                  value={String(inputs.rounding)}
                   onChange={(e) => update({ rounding: Number(e.target.value) })}
                 >
-                  value={String(inputs.rounding)}
                   <option value="0.1">0.1</option>
                   <option value="1">1</option>
                   <option value="10">10</option>
                 </select>
               </div>
+              {field("markupPct", t.markup, { disabled: inputs.pricingMode !== "markup" })}
+              {field("marginPct", t.margin, { disabled: inputs.pricingMode !== "margin" })}
             </div>
           </section>
 
+          {/* 成本明細輸入（右側） */}
           <section className="lg:col-span-2 rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">{inputs.inputMode === "perUnit" ? t.costParamsUnit : t.costParamsTotal}</h2>
             <p className="mb-4 text-sm text-gray-600">{t.hintPath(inputs.supplierTerm, inputs.targetTerm)}</p>
@@ -601,7 +732,7 @@ export default function IncotermQuoteCalculator() {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                   {field("inlandToPort", t.inlandToPort, { disabled: inlandToPortDisabled, note: inlandToPortNote })}
                   {field("exportDocsClearance", t.exportDocs, { disabled: exportDocsDisabled, note: exportDocsNote })}
-                  {field("numOfShipments", t.numOfShipments, { step: 1, min: 1, note: "每票報關費用 × 票數" })}
+                  {field("numOfShipments", t.numOfShipments, { step: 1, min: 0, note: "每票報關費用 × 票數（可為 0）" })}
                   {field("originPortFees", t.originPort, { disabled: originPortFeesDisabled, note: originPortFeesNote })}
                   {field("mainFreight", t.mainFreight, {
                     disabled: targetIdx < idx("CFR"),
@@ -647,6 +778,7 @@ export default function IncotermQuoteCalculator() {
           </section>
         </div>
 
+        {/* 責任對照 */}
         <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">{t.respTitle}</h2>
           <div className="overflow-x-auto">
@@ -682,6 +814,7 @@ export default function IncotermQuoteCalculator() {
           </div>
         </section>
 
+        {/* 計算結果 */}
         <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold">{t.results}</h2>
           <div className="grid gap-4 md:grid-cols-3">
@@ -732,7 +865,7 @@ export default function IncotermQuoteCalculator() {
               <tbody>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t.supplierValue}（{inputs.supplierTerm}）</td>
-                  <td className="px-3 py-2">{labelCurrency(inputs.supplierUnitPrice)}</td>
+                  <td className="px-3 py-2">{labelCurrency(calc.baseGoods)}</td>
                   <td className="px-3 py-2">{t.startValue}</td>
                 </tr>
                 {segs.includes("FOB") && (

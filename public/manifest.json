@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "報價計算器",
+  "name": "Incoterm 報價計算器",
+  "description": "專業的國際貿易報價計算工具，支援多種貿易條件和成本分攤方式",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +11,23 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#1f2937",
+  "background_color": "#f9fafb",
+  "categories": ["business", "productivity", "finance"],
+  "lang": "zh-TW",
+  "scope": "/",
+  "prefer_related_applications": false
 }

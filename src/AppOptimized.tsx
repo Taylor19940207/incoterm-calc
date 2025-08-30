@@ -1,0 +1,701 @@
+import React, { useCallback, useMemo } from 'react';
+import { Inputs, Product, Term } from './types';
+import { calculateQuote, calculateDerivedValues, calculateAllProductQuotes } from './utils/calculations';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import { dict } from './data/dictionary';
+import InputField from './components/InputField';
+import ProductManager from './components/ProductManager';
+import ProductQuotes from './components/ProductQuotes';
+import PerformanceMonitor from './components/PerformanceMonitor';
+import PWARegister from './components/PWARegister';
+
+const TERMS: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
+
+// 默認輸入值
+const defaultInputs: Inputs = {
+  // 基本設置
+  currency: "JPY",
+  lang: "zh",
+  
+  // 商品管理（默認1個商品）
+  products: [{
+    id: "default-product",
+    name: "商品1",
+    inputMode: "perBox",
+    boxPrice: 500,
+    boxQuantity: 10,
+    orderBoxes: 10,
+    volume: 0.1,
+    weight: 1.0
+  }],
+  
+  // 貿易條件
+  supplierTerm: "FOB",
+  targetTerm: "CIF",
+  
+  // 輸入模式 - 改為預設整票總額
+  inputMode: "total",
+  
+  // 定價設置
+  pricingMode: "markup",
+  markupPct: 15,
+  marginPct: 12,
+  bankFeePct: 0.6,
+  rounding: 1,
+  
+  // 分攤模式 - 預設混合分攤
+  allocationMethod: "hybrid",
+  
+  // 成本參數（整票固定費用）
+  exportDocsClearance: 20000,
+  documentFees: 5000,
+  inlandToPort: 15000,
+  originPortFees: 8000,
+  mainFreight: 100000,
+  insuranceRatePct: 0.2,
+  destPortFees: 0,
+  importBroker: 0,
+  lastMileDelivery: 0,
+  dutyPct: 0,
+  vatPct: 0,
+  miscPerUnit: 0,
+  includeBrokerInTaxBase: false,
+  exportDocsMode: "total",
+  numOfShipments: 1,
+};
+
+// 哪些欄位屬於「每單位費用」（可支援整票模式自動換算）
+const perUnitFields = new Set([
+  "inlandToPort", "originPortFees", "destPortFees", 
+  "importBroker", "lastMileDelivery", "miscPerUnit"
+]);
+
+const IncotermQuoteCalculatorOptimized: React.FC = () => {
+  const [inputs, setInputs] = useLocalStorage<Inputs>("incoterm-inputs", defaultInputs);
+  const t = dict[inputs.lang];
+
+  // 計算衍生值
+  const derived = useMemo(() => 
+    calculateDerivedValues(inputs.products), 
+    [inputs.products]
+  );
+
+  // 計算報價（原有邏輯）
+  const calc = useMemo(() => 
+    calculateQuote({
+      supplierTerm: inputs.supplierTerm,
+      targetTerm: inputs.targetTerm,
+      qty: derived.qty,
+      unitPrice: derived.sumVal / derived.qty,
+      inlandToPort: inputs.inlandToPort,
+      exportDocsClearance: inputs.exportDocsClearance,
+      numOfShipments: inputs.numOfShipments,
+      originPortFees: inputs.originPortFees,
+      mainFreight: inputs.mainFreight,
+      insuranceRatePct: inputs.insuranceRatePct,
+      destPortFees: inputs.destPortFees,
+      importBroker: inputs.importBroker,
+      lastMileDelivery: inputs.lastMileDelivery,
+      dutyPct: inputs.dutyPct,
+      vatPct: inputs.vatPct,
+      miscPerUnit: inputs.miscPerUnit,
+      bankFeePct: inputs.bankFeePct,
+      pricingMode: inputs.pricingMode,
+      markupPct: inputs.markupPct,
+      marginPct: inputs.marginPct,
+      rounding: inputs.rounding,
+      includeBrokerInTaxBase: inputs.includeBrokerInTaxBase,
+    }), 
+    [inputs, derived.qty, derived.sumVal]
+  );
+
+  // 計算商品個別報價
+  const productQuotes = useMemo(() => 
+    calculateAllProductQuotes(inputs), 
+    [inputs]
+  );
+
+  // 更新函數
+  const update = useCallback((patch: Partial<Inputs>) => {
+    setInputs(prev => ({ ...prev, ...patch }));
+  }, [setInputs]);
+
+  // 更新商品列表
+  const updateProducts = useCallback((products: Product[]) => {
+    update({ products });
+  }, [update]);
+
+  // 獲取顯示值
+  const getDisplayValue = useCallback((name: keyof Inputs) => {
+    const value = inputs[name];
+    if (typeof value === 'number') {
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
+        return String(value);
+      }
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "perUnit") {
+        const per = value;
+        return String(per * Math.max(0, inputs.numOfShipments || 0));
+      }
+      
+      if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
+        return String(value * derived.qty);
+      }
+      return String(value);
+    }
+    return String(value || '');
+  }, [inputs, derived.qty]);
+
+  // 設置顯示值
+  const setFromDisplay = useCallback((name: keyof Inputs, displayValue: string) => {
+    const value = Number(displayValue) || 0;
+    
+    if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
+      update({ [name]: value });
+      return;
+    }
+    
+    if (name === "exportDocsClearance" && inputs.exportDocsMode === "perUnit") {
+      const per = derived.qty > 0 ? value / Math.max(0, inputs.numOfShipments || 0) : 0;
+      update({ [name]: per });
+      return;
+    }
+    
+    if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
+      const perUnit = derived.qty > 0 ? value / derived.qty : 0;
+      update({ [name]: perUnit });
+      return;
+    }
+    
+    update({ [name]: value });
+  }, [inputs, derived.qty, update]);
+
+  // 處理輸入變更
+  const handleInputChange = useCallback((name: string, value: string) => {
+    setFromDisplay(name as keyof Inputs, value);
+  }, [setFromDisplay]);
+
+  // 重置
+  const handleReset = useCallback(() => {
+    if (window.confirm('確定要重置所有數據嗎？')) {
+      setInputs(defaultInputs);
+    }
+  }, [setInputs]);
+
+  // 責任對照
+  const ownerForResp = useCallback((rkey: string): "factory" | "exporter" | "importer" => {
+    if (rkey === "r_inland" || rkey === "r_origin") {
+      if (inputs.supplierTerm === "EXW") return "exporter";
+      return "factory";
+    }
+    if (rkey === "r_export") return "exporter";
+    if (rkey === "r_freight") return calc.need_FOB_to_CFR ? "exporter" : "importer";
+    if (rkey === "r_insurance") return calc.need_CFR_to_CIF ? "exporter" : "importer";
+    if (rkey === "r_dest" || rkey === "r_lastmile") return calc.need_CIF_to_DAP ? "exporter" : "importer";
+    if (rkey === "r_duty" || rkey === "r_vat") return "importer";
+    return "importer";
+  }, [inputs.supplierTerm, calc]);
+
+  // 格式化函數
+  const labelCurrency = useCallback((val: number) => 
+    `${inputs.currency} ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+    [inputs.currency]
+  );
+
+  const labelPct = useCallback((val: number) => 
+    `${(val * 100).toFixed(2)}%`, 
+    []
+  );
+
+  // 責任對照表數據
+  const responsibilities = useMemo(() => [
+    { key: "r_inland", label: "內陸拖運" },
+    { key: "r_export", label: "出口文件" },
+    { key: "r_origin", label: "起運港費用" },
+    { key: "r_freight", label: "主運費" },
+    { key: "r_insurance", label: "保險" },
+    { key: "r_dest", label: "目的港費用" },
+    { key: "r_import", label: "進口通關" },
+    { key: "r_lastmile", label: "末端配送" },
+    { key: "r_duty", label: "關稅" },
+    { key: "r_vat", label: "VAT/GST" },
+  ], []);
+
+  // 需要顯示的費用段
+  const segs = useMemo(() => {
+    const segments: string[] = [];
+    if (calc.need_EXW_to_FOB) segments.push("FOB");
+    if (calc.need_FOB_to_CFR) segments.push("CFR");
+    if (calc.need_CFR_to_CIF) segments.push("CIF");
+    if (calc.need_CIF_to_DAP) segments.push("DAP");
+    if (calc.need_DAP_to_DDP) segments.push("DDP");
+    return segments;
+  }, [calc]);
+
+  return (
+    <div className="min-h-screen w-full bg-gray-50 text-gray-900">
+      <PerformanceMonitor name="IncotermCalculator" />
+      <PWARegister />
+      
+      <div className="mx-auto max-w-6xl p-4 md:p-8">
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">{t.title}</h1>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">{t.langLabel}：</span>
+              <button 
+                className={`rounded-full px-3 py-1 border ${inputs.lang === "zh" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                onClick={() => update({ lang: "zh" })}
+              >
+                {t.zh}
+              </button>
+              <button 
+                className={`rounded-full px-3 py-1 border ${inputs.lang === "ja" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                onClick={() => update({ lang: "ja" })}
+              >
+                {t.ja}
+              </button>
+            </div>
+          </div>
+          
+          <button 
+            className="rounded-2xl border px-3 py-2 text-sm hover:bg-white" 
+            onClick={handleReset}
+          >
+            {t.reset}
+          </button>
+        </header>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* 基本參數 */}
+          <section className="lg:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-lg font-semibold">基本參數</h2>
+
+            {/* 貨幣選擇 */}
+            <div className="mb-4">
+              <label className="text-sm text-gray-600">{t.currency}</label>
+              <select
+                className="mt-1 w-full rounded-2xl border px-3 py-2"
+                value={inputs.currency}
+                onChange={(e) => update({ currency: e.target.value })}
+              >
+                <option value="JPY">JPY</option>
+                <option value="USD">USD</option>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="TWD">TWD</option>
+              </select>
+            </div>
+
+            {/* 商品管理 */}
+            <div className="mb-4">
+              <label className="text-sm text-gray-600 mb-2 block">商品管理</label>
+              <ProductManager
+                products={inputs.products}
+                currency={inputs.currency}
+                onUpdate={updateProducts}
+                t={t}
+              />
+            </div>
+
+            {/* 貿易條件 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.supplierTerm}</label>
+                <select 
+                  className="w-full rounded-2xl border px-3 py-2" 
+                  value={inputs.supplierTerm} 
+                  onChange={(e) => update({ supplierTerm: e.target.value as Term })}
+                >
+                  {TERMS.map((term) => (<option key={term} value={term}>{term}</option>))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.targetTerm}</label>
+                <select 
+                  className="w-full rounded-2xl border px-3 py-2" 
+                  value={inputs.targetTerm} 
+                  onChange={(e) => update({ targetTerm: e.target.value as Term })}
+                >
+                  {TERMS.map((term) => (<option key={term} value={term}>{term}</option>))}
+                </select>
+              </div>
+            </div>
+
+            {/* 輸入模式 */}
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-sm text-gray-600">{t.inputMode}：</span>
+              <div className="flex items-center gap-2">
+                <button 
+                  className={`rounded-full px-3 py-1 text-sm border ${inputs.inputMode === "perUnit" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                  onClick={() => update({ inputMode: "perUnit" })}
+                >
+                  {t.perUnit}
+                </button>
+                <button 
+                  className={`rounded-full px-3 py-1 text-sm border ${inputs.inputMode === "total" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                  onClick={() => update({ inputMode: "total" })}
+                >
+                  {t.total}
+                </button>
+              </div>
+            </div>
+
+            {/* 定價模式 */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.pricingMode}</label>
+                <select 
+                  className="w-full rounded-2xl border px-3 py-2" 
+                  value={inputs.pricingMode} 
+                  onChange={(e) => update({ pricingMode: e.target.value as any })}
+                >
+                  <option value="markup">{t.markup}</option>
+                  <option value="margin">{t.margin}</option>
+                </select>
+              </div>
+              
+              <InputField
+                name="bankFeePct"
+                label={t.bankFee}
+                value={getDisplayValue("bankFeePct")}
+                onChange={handleInputChange}
+                unit="%"
+              />
+              
+              <div className="flex flex-col gap-1">
+                <label className="text-sm text-gray-600">{t.rounding}</label>
+                <select
+                  className="w-full rounded-2xl border px-3 py-2"
+                  value={String(inputs.rounding)}
+                  onChange={(e) => update({ rounding: Number(e.target.value) })}
+                >
+                  <option value="0.1">0.1</option>
+                  <option value="1">1</option>
+                  <option value="10">10</option>
+                </select>
+              </div>
+              
+              <InputField
+                name="markupPct"
+                label={t.markup}
+                value={getDisplayValue("markupPct")}
+                onChange={handleInputChange}
+                unit="%"
+                disabled={inputs.pricingMode !== "markup"}
+              />
+              
+              <InputField
+                name="marginPct"
+                label={t.margin}
+                value={getDisplayValue("marginPct")}
+                onChange={handleInputChange}
+                unit="%"
+                disabled={inputs.pricingMode !== "margin"}
+              />
+            </div>
+
+            {/* 分攤模式 */}
+            <div className="mt-4">
+              <label className="text-sm text-gray-600">{t.allocationMethod}</label>
+              <select 
+                className="mt-1 w-full rounded-2xl border px-3 py-2" 
+                value={inputs.allocationMethod} 
+                onChange={(e) => update({ allocationMethod: e.target.value as any })}
+              >
+                <option value="quantity">{t.allocationQuantity}</option>
+                <option value="volume">{t.allocationVolume}</option>
+                <option value="value">{t.allocationValue}</option>
+                <option value="hybrid">{t.allocationHybrid}</option>
+              </select>
+              <div className="mt-1 text-xs text-gray-500">{t.allocationHint}</div>
+            </div>
+          </section>
+
+          {/* 成本明細輸入 */}
+          <section className="lg:col-span-2 rounded-2xl bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-lg font-semibold">
+              {inputs.inputMode === "perUnit" ? t.costParamsUnit : t.costParamsTotal}
+            </h2>
+            <p className="mb-4 text-sm text-gray-600">
+              {t.hintPath(inputs.supplierTerm, inputs.targetTerm)}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <InputField
+                name="inlandToPort"
+                label={t.inlandToPort}
+                value={getDisplayValue("inlandToPort")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={inputs.supplierTerm !== "EXW"}
+                note={inputs.supplierTerm !== "EXW" ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="exportDocsClearance"
+                label={t.exportDocsClearance}
+                value={getDisplayValue("exportDocsClearance")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+              />
+              
+              <InputField
+                name="documentFees"
+                label={t.documentFees}
+                value={getDisplayValue("documentFees")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+              />
+              
+              <InputField
+                name="originPortFees"
+                label={t.originPortFees}
+                value={getDisplayValue("originPortFees")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={inputs.supplierTerm !== "EXW"}
+                note={inputs.supplierTerm !== "EXW" ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="mainFreight"
+                label={t.mainFreight}
+                value={getDisplayValue("mainFreight")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={calc.need_FOB_to_CFR === false}
+                note={calc.need_FOB_to_CFR === false ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="insuranceRatePct"
+                label={t.insuranceRatePct}
+                value={getDisplayValue("insuranceRatePct")}
+                onChange={handleInputChange}
+                unit="%"
+                disabled={calc.need_CFR_to_CIF === false}
+                note={calc.need_CFR_to_CIF === false ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="destPortFees"
+                label={t.destPortFees}
+                value={getDisplayValue("destPortFees")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={calc.need_CIF_to_DAP === false}
+                note={calc.need_CIF_to_DAP === false ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="importBroker"
+                label={t.importBroker}
+                value={getDisplayValue("importBroker")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={calc.need_CIF_to_DAP === false}
+                note={calc.need_CIF_to_DAP === false ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="lastMileDelivery"
+                label={t.lastMileDelivery}
+                value={getDisplayValue("lastMileDelivery")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+                disabled={calc.need_CIF_to_DAP === false}
+                note={calc.need_CIF_to_DAP === false ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="dutyPct"
+                label={t.dutyPct}
+                value={getDisplayValue("dutyPct")}
+                onChange={handleInputChange}
+                unit="%"
+                disabled={inputs.targetTerm !== "DDP"}
+                note={inputs.targetTerm !== "DDP" ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="vatPct"
+                label={t.vatPct}
+                value={getDisplayValue("vatPct")}
+                onChange={handleInputChange}
+                unit="%"
+                disabled={inputs.targetTerm !== "DDP"}
+                note={inputs.targetTerm !== "DDP" ? t.notApplicable : t.includeNote}
+              />
+              
+              <InputField
+                name="miscPerUnit"
+                label={t.miscPerUnit}
+                value={getDisplayValue("miscPerUnit")}
+                onChange={handleInputChange}
+                unit={inputs.currency}
+              />
+            </div>
+
+            {/* 稅基設置 */}
+            <div className="mt-4 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="includeBrokerInTaxBase"
+                checked={inputs.includeBrokerInTaxBase}
+                onChange={(e) => update({ includeBrokerInTaxBase: e.target.checked })}
+                className="rounded border px-3 py-2"
+              />
+              <label htmlFor="includeBrokerInTaxBase" className="text-sm text-gray-600">
+                {t.includeBrokerInTaxBase}
+              </label>
+            </div>
+          </section>
+        </div>
+
+        {/* 商品個別報價 */}
+        <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
+          <ProductQuotes
+            products={productQuotes.products}
+            currency={inputs.currency}
+            t={t}
+            costBreakdown={productQuotes.costBreakdown}
+          />
+        </section>
+
+        {/* 責任對照表 */}
+        <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-lg font-semibold">{t.respTitle}</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-3 py-2 text-left">{t.breakdownCol1}</th>
+                  <th className="px-3 py-2 text-center">{t.factory}</th>
+                  <th className="px-3 py-2 text-center">{t.exporter}</th>
+                  <th className="px-3 py-2 text-center">{t.importer}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {responsibilities.map((r) => {
+                  const owner = ownerForResp(r.key);
+                  return (
+                    <tr key={r.key} className="border-b">
+                      <td className="px-3 py-2">{r.label}</td>
+                      <td className={`px-3 py-2 ${owner === "factory" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                        {owner === "factory" ? "✓" : ""}
+                      </td>
+                      <td className={`px-3 py-2 ${owner === "exporter" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                        {owner === "exporter" ? "✓" : ""}
+                      </td>
+                      <td className={`px-3 py-2 ${owner === "importer" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                        {owner === "importer" ? "✓" : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* 計算結果 */}
+        <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-lg font-semibold">{t.results}</h2>
+          
+          <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+            <div className="text-center">
+              <div className="text-sm text-gray-500">{t.unitQuote}</div>
+              <div className="text-2xl font-bold">{labelCurrency(calc.unitQuote)}</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-gray-500">{t.costPerUnit}</div>
+              <div className="text-2xl font-bold">{labelCurrency(calc.costPerUnit)}</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-gray-500">{t.totalQuote}</div>
+              <div className="text-2xl font-bold">{labelCurrency(calc.totalQuote)}</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-gray-500">{t.marginAfterBank}</div>
+              <div className="text-2xl font-bold">{labelPct(calc.profitMargin)}</div>
+              <div className="mt-1 text-xs text-gray-500">{t.bankRateLabel}：{(calc.bankRate * 100).toFixed(2)}%</div>
+            </div>
+          </div>
+
+          {/* 成本明細表 */}
+          <div className="mt-8 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-3 py-2 text-left">{t.breakdownCol1}</th>
+                  <th className="px-3 py-2 text-right">{t.amount}</th>
+                  <th className="px-3 py-2 text-left">{t.note}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="px-3 py-2">{t.supplierValue}</td>
+                  <td className="px-3 py-2 text-right">{labelCurrency(derived.sumVal)}</td>
+                  <td className="px-3 py-2">{t.startValue}</td>
+                </tr>
+                {segs.includes("FOB") && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t.segEXWFOB}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(calc.exwToFob * derived.qty)}</td>
+                    <td className="px-3 py-2">{labelCurrency(calc.exwToFob)} / {t.qtyLabel}</td>
+                  </tr>
+                )}
+                {segs.includes("CFR") && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t.segFOBCFR}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(calc.fobToCfr * derived.qty)}</td>
+                    <td className="px-3 py-2">{labelCurrency(calc.fobToCfr)} / {t.qtyLabel}</td>
+                  </tr>
+                )}
+                {segs.includes("CIF") && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t.segCFRCIF}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(calc.insurancePU * derived.qty)}</td>
+                    <td className="px-3 py-2">{labelCurrency(calc.insurancePU)} / {t.qtyLabel}</td>
+                  </tr>
+                )}
+                {segs.includes("DAP") && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t.segCIFDAP}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(calc.cifToDap * derived.qty)}</td>
+                    <td className="px-3 py-2">{labelCurrency(calc.cifToDap)} / {t.qtyLabel}</td>
+                  </tr>
+                )}
+                {segs.includes("DDP") && (
+                  <>
+                    <tr className="border-b">
+                      <td className="px-3 py-2">{t.dutyRow}</td>
+                      <td className="px-3 py-2 text-right">{labelCurrency(calc.dutyPerUnit * derived.qty)}</td>
+                      <td className="px-3 py-2">{labelCurrency(calc.dutyPerUnit)} / {t.qtyLabel}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="px-3 py-2">{t.vatRow}</td>
+                      <td className="px-3 py-2 text-right">{labelCurrency(calc.vatPerUnit * derived.qty)}</td>
+                      <td className="px-3 py-2">{labelCurrency(calc.vatPerUnit)} / {t.qtyLabel}</td>
+                    </tr>
+                  </>
+                )}
+                <tr className="border-b font-semibold">
+                  <td className="px-3 py-2">{t.totalCost}</td>
+                  <td className="px-3 py-2 text-right">{labelCurrency(calc.totalQuote)}</td>
+                  <td className="px-3 py-2">{t.totalProfitNote}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+export default IncotermQuoteCalculatorOptimized;

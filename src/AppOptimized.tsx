@@ -7,7 +7,7 @@ import InputField from './components/InputField';
 import ProductManager from './components/ProductManager';
 import ProductQuotes from './components/ProductQuotes';
 import PerformanceMonitor from './components/PerformanceMonitor';
-import PWARegister from './components/PWARegister';
+
 
 const TERMS: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
 
@@ -234,7 +234,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
   return (
     <div className="min-h-screen w-full bg-gray-50 text-gray-900">
       <PerformanceMonitor name="IncotermCalculator" />
-      <PWARegister />
+      
       
       <div className="mx-auto max-w-6xl p-4 md:p-8">
         <header className="mb-6 flex items-center justify-between gap-4">

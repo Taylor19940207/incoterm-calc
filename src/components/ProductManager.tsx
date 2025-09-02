@@ -19,7 +19,7 @@ const ProductManager: React.FC<ProductManagerProps> = React.memo(({
   const addProduct = useCallback(() => {
     const newProduct: Product = {
       id: `product-${Date.now()}-${Math.random()}`,
-      name: `商品${products.length + 1}`,
+      name: `${t["商品"]}${products.length + 1}`,
       inputMode: "perBox",
       boxPrice: 0,
       boxQuantity: 1,
@@ -28,7 +28,7 @@ const ProductManager: React.FC<ProductManagerProps> = React.memo(({
       weight: 0
     };
     onUpdate([...products, newProduct]);
-  }, [products, onUpdate]);
+  }, [products, onUpdate, t]);
 
   // 刪除商品
   const deleteProduct = useCallback((index: number) => {
@@ -69,7 +69,7 @@ const ProductManager: React.FC<ProductManagerProps> = React.memo(({
                 value={product.name}
                 onChange={(e) => updateProduct(index, 'name', e.target.value)}
                 className="w-full text-base border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="商品名稱"
+                placeholder={t["商品名稱"]}
               />
             </div>
             
@@ -83,7 +83,7 @@ const ProductManager: React.FC<ProductManagerProps> = React.memo(({
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
-                title="上移"
+                title={t["上移"]}
               >
                 ↑
               </button>
@@ -95,7 +95,7 @@ const ProductManager: React.FC<ProductManagerProps> = React.memo(({
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-500 hover:bg-gray-100'
                 }`}
-                title="下移"
+                title={t["下移"]}
               >
                 ↓
               </button>

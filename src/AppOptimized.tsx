@@ -9,6 +9,7 @@ import ProductQuotes from './components/ProductQuotes';
 import PerformanceMonitor from './components/PerformanceMonitor';
 
 
+
 const TERMS: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
 
 // 默認輸入值
@@ -20,7 +21,7 @@ const defaultInputs: Inputs = {
   // 商品管理（默認1個商品）
   products: [{
     id: "default-product",
-    name: "商品1",
+    name: "Product 1",
     inputMode: "perBox",
     boxPrice: 500,
     boxQuantity: 10,
@@ -43,7 +44,10 @@ const defaultInputs: Inputs = {
   bankFeePct: 0.6,
   rounding: 1,
   
-  // 分攤模式 - 預設混合分攤
+  // 第二層：出口費用包含方式 - 預設包含
+  exportCostInclusion: "include",
+  
+  // 第三層：分攤方式選擇 - 預設智能混合分攤
   allocationMethod: "hybrid",
   
   // 成本參數（整票固定費用）
@@ -265,6 +269,8 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
           </button>
         </header>
 
+
+        
         <div className="grid gap-6 lg:grid-cols-3">
           {/* 基本參數 */}
           <section className="lg:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
@@ -341,28 +347,177 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
               </div>
             </div>
 
-            {/* 定價模式 */}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-gray-600">{t.pricingMode}</label>
-                <select 
-                  className="w-full rounded-2xl border px-3 py-2" 
-                  value={inputs.pricingMode} 
-                  onChange={(e) => update({ pricingMode: e.target.value as any })}
-                >
-                  <option value="markup">{t.markup}</option>
-                  <option value="margin">{t.margin}</option>
-                </select>
+            {/* 第一層：報價模式 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">1</span>
+                {t["1 報價模式（決定利潤計算方式）"]}
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm text-gray-600">{t.pricingMode}</label>
+                  <select 
+                    className="w-full rounded-2xl border px-3 py-2" 
+                    value={inputs.pricingMode} 
+                    onChange={(e) => update({ pricingMode: e.target.value as any })}
+                  >
+                    <option value="markup">{t.markup}</option>
+                    <option value="margin">{t.margin}</option>
+                  </select>
+                </div>
+                
+                <InputField
+                  name="bankFeePct"
+                  label={t.bankFee}
+                  value={getDisplayValue("bankFeePct")}
+                  onChange={handleInputChange}
+                  unit="%"
+                />
               </div>
               
-              <InputField
-                name="bankFeePct"
-                label={t.bankFee}
-                value={getDisplayValue("bankFeePct")}
-                onChange={handleInputChange}
-                unit="%"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <InputField
+                  name="markupPct"
+                  label={t.markup}
+                  value={getDisplayValue("markupPct")}
+                  onChange={handleInputChange}
+                  unit="%"
+                  disabled={inputs.pricingMode !== "markup"}
+                />
+                
+                <InputField
+                  name="marginPct"
+                  label={t.margin}
+                  value={getDisplayValue("marginPct")}
+                  onChange={handleInputChange}
+                  unit="%"
+                  disabled={inputs.pricingMode !== "margin"}
+                />
+              </div>
               
+              <div className="mt-2 text-xs text-gray-500">
+                {inputs.pricingMode === "markup" 
+                  ? t["報價 = 單位成本 × (1 + 加價率%)"]
+                  : t["報價 = 單位成本 ÷ (1 - 毛利率%)"]
+                }
+              </div>
+            </div>
+
+            {/* 第二層：出口費用包含方式 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                <span className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">2</span>
+                {t["2 出口費用包含方式（決定單位成本定義）"]}
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="exportCostInclusion"
+                    value="exclude"
+                    checked={inputs.exportCostInclusion === 'exclude'}
+                    onChange={() => update({ exportCostInclusion: 'exclude' })}
+                    className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">{t["不含出口費用"]}</span>
+                    <div className="text-xs text-gray-500">{t["單位成本 = 供應商單價"]}</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="exportCostInclusion"
+                    value="include"
+                    checked={inputs.exportCostInclusion === 'include'}
+                    onChange={() => update({ exportCostInclusion: 'include' })}
+                    className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">{t["含出口費用"]}</span>
+                    <div className="text-xs text-gray-500">{t["單位成本 = 供應商單價 + 分攤的出口成本"]}</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* 第三層：分攤方式選擇（僅在包含出口費用時顯示） */}
+            {inputs.exportCostInclusion === 'include' && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <span className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">3</span>
+                  {t["3 分攤方式選擇（多產品混裝時用）"]}
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="allocationMethod"
+                      value="quantity"
+                      checked={inputs.allocationMethod === 'quantity'}
+                      onChange={() => update({ allocationMethod: 'quantity' })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{t["數量比例法"]}</span>
+                      <div className="text-xs text-gray-500">{t["適合：產品體積/重量差不多"]}</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="allocationMethod"
+                      value="volume"
+                      checked={inputs.allocationMethod === 'volume'}
+                      onChange={() => update({ allocationMethod: 'volume' })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{t["體積/重量比例法"]}</span>
+                      <div className="text-xs text-gray-500">{t["適合：產品大小差異大"]}</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="allocationMethod"
+                      value="value"
+                      checked={inputs.allocationMethod === 'value'}
+                      onChange={() => update({ allocationMethod: 'value' })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{t["貨值比例法"]}</span>
+                      <div className="text-xs text-gray-500">{t["適合：高價+低價混裝"]}</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="allocationMethod"
+                      value="hybrid"
+                      checked={inputs.allocationMethod === 'hybrid'}
+                      onChange={() => update({ allocationMethod: 'hybrid' })}
+                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                    />
+                                         <div>
+                       <span className="text-sm font-medium text-gray-700">{t["智能混合法（推薦）"]}</span>
+                       <div className="text-xs text-gray-500">{t["文件按貨值，物流按體積"]}</div>
+                     </div>
+                   </label>
+                 </div>
+               </div>
+             )}
+
+            {/* 四捨五入設置 */}
+            <div className="mt-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm text-gray-600">{t.rounding}</label>
                 <select
@@ -375,40 +530,6 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                   <option value="10">10</option>
                 </select>
               </div>
-              
-              <InputField
-                name="markupPct"
-                label={t.markup}
-                value={getDisplayValue("markupPct")}
-                onChange={handleInputChange}
-                unit="%"
-                disabled={inputs.pricingMode !== "markup"}
-              />
-              
-              <InputField
-                name="marginPct"
-                label={t.margin}
-                value={getDisplayValue("marginPct")}
-                onChange={handleInputChange}
-                unit="%"
-                disabled={inputs.pricingMode !== "margin"}
-              />
-            </div>
-
-            {/* 分攤模式 */}
-            <div className="mt-4">
-              <label className="text-sm text-gray-600">{t.allocationMethod}</label>
-              <select 
-                className="mt-1 w-full rounded-2xl border px-3 py-2" 
-                value={inputs.allocationMethod} 
-                onChange={(e) => update({ allocationMethod: e.target.value as any })}
-              >
-                <option value="quantity">{t.allocationQuantity}</option>
-                <option value="volume">{t.allocationVolume}</option>
-                <option value="value">{t.allocationValue}</option>
-                <option value="hybrid">{t.allocationHybrid}</option>
-              </select>
-              <div className="mt-1 text-xs text-gray-500">{t.allocationHint}</div>
             </div>
           </section>
 
@@ -550,18 +671,23 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                 {t.includeBrokerInTaxBase}
               </label>
             </div>
+
+            {/* 商品個別報價 */}
+            <div className="mt-6">
+              <ProductQuotes
+                products={productQuotes.products}
+                currency={inputs.currency}
+                t={t}
+                costBreakdown={productQuotes.costBreakdown}
+              />
+            </div>
           </section>
+
         </div>
 
-        {/* 商品個別報價 */}
-        <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
-          <ProductQuotes
-            products={productQuotes.products}
-            currency={inputs.currency}
-            t={t}
-            costBreakdown={productQuotes.costBreakdown}
-          />
-        </section>
+
+
+
 
         {/* 責任對照表 */}
         <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
@@ -631,9 +757,9 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="px-3 py-2 text-left">{t.breakdownCol1}</th>
-                  <th className="px-3 py-2 text-right">{t.amount}</th>
-                  <th className="px-3 py-2 text-left">{t.note}</th>
+                  <th className="px-3 py-2 text-left">{t.breakdownCol1 || "項目"}</th>
+                  <th className="px-3 py-2 text-right">{t.amount || "金額"}</th>
+                  <th className="px-3 py-2 text-left">{t.note || "說明"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -684,6 +810,11 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                     </tr>
                   </>
                 )}
+                <tr className="border-b">
+                  <td className="px-3 py-2">{t.miscRow}</td>
+                  <td className="px-3 py-2 text-right">{labelCurrency(calc.miscPerUnit * derived.qty)}</td>
+                  <td className="px-3 py-2">{labelCurrency(calc.miscPerUnit)} / {t.qtyLabel}</td>
+                </tr>
                 <tr className="border-b font-semibold">
                   <td className="px-3 py-2">{t.totalCost}</td>
                   <td className="px-3 py-2 text-right">{labelCurrency(calc.totalQuote)}</td>

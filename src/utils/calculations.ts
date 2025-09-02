@@ -46,6 +46,7 @@ export interface CalculationResult {
   cifUnitValue: number;
   dutyPerUnit: number;
   vatPerUnit: number;
+  miscPerUnit: number;
   need_EXW_to_FOB: boolean;
   need_FOB_to_CFR: boolean;
   need_CFR_to_CIF: boolean;
@@ -139,6 +140,7 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
     cifUnitValue: cifBase,
     dutyPerUnit,
     vatPerUnit,
+    miscPerUnit,
     need_EXW_to_FOB: idx(tTerm) >= idx("FOB"),
     need_FOB_to_CFR: idx(tTerm) >= idx("CFR"),
     need_CFR_to_CIF: idx(tTerm) >= idx("CIF"),

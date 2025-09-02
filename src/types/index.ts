@@ -5,6 +5,11 @@ export type Owner = "factory" | "exporter" | "importer";
 export type PricingMode = "markup" | "margin";
 export type InputMode = "perUnit" | "total";
 export type ProductInputMode = "perBox" | "perUnit";
+
+// 第二層：出口費用包含方式
+export type ExportCostInclusion = "exclude" | "include";
+
+// 第三層：分攤方式選擇
 export type AllocationMethod = "quantity" | "volume" | "value" | "hybrid";
 
 export interface Product {
@@ -39,14 +44,17 @@ export interface Inputs {
   // 輸入模式
   inputMode: InputMode;
   
-  // 定價設置
+  // 第一層：定價設置
   pricingMode: PricingMode;
   markupPct: number;
   marginPct: number;
   bankFeePct: number;
   rounding: number;
   
-  // 分攤模式
+  // 第二層：出口費用包含方式
+  exportCostInclusion: ExportCostInclusion;
+  
+  // 第三層：分攤方式選擇（僅在包含出口費用時顯示）
   allocationMethod: AllocationMethod;
   
   // 成本參數（整票固定費用）

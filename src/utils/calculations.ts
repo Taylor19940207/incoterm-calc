@@ -91,10 +91,10 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
   const exportDocsClearance = exportDocsClearanceTotal / q;
   const mainFreight = add.mainFreight ? (inputs.mainFreight || 0) : 0;
 
-  // 保險費計算
-  const insuranceBase = baseGoods + inlandToPort + originPortFees + mainFreight;
+  // 保險費計算（統一使用國際標準：貨物價值+運費的110%作為保險基數）
+  const insuranceBase = baseGoods + mainFreight;
   const insurancePU = add.insurance ? 
-    (insuranceBase * ((inputs.insuranceRatePct || 0) / 100)) : 0;
+    (insuranceBase * 1.1 * ((inputs.insuranceRatePct || 0) / 100)) : 0;
 
   const destPortFees = add.destPortFees ? (inputs.destPortFees || 0) : 0;
   const importBroker = add.importBroker ? (inputs.importBroker || 0) : 0;
@@ -265,28 +265,50 @@ export function calculateCostAllocation(
   });
 }
 
-// 計算成本明細
+// 計算成本明細（使用統一的 calculateQuote 函數）
 export function calculateCostBreakdown(inputs: Inputs) {
-  const { products = [], supplierTerm, targetTerm } = inputs;
+  const { products = [] } = inputs;
   const derived = calculateDerivedValues(products);
+  
+  // 使用統一的 calculateQuote 函數計算所有費用
+  const quoteResult = calculateQuote({
+    supplierTerm: inputs.supplierTerm,
+    targetTerm: inputs.targetTerm,
+    qty: derived.qty,
+    unitPrice: derived.sumVal / derived.qty,
+    inlandToPort: inputs.inlandToPort,
+    exportDocsClearance: inputs.exportDocsClearance,
+    numOfShipments: inputs.numOfShipments,
+    originPortFees: inputs.originPortFees,
+    mainFreight: inputs.mainFreight,
+    insuranceRatePct: inputs.insuranceRatePct,
+    destPortFees: inputs.destPortFees,
+    importBroker: inputs.importBroker,
+    lastMileDelivery: inputs.lastMileDelivery,
+    dutyPct: inputs.dutyPct,
+    vatPct: inputs.vatPct,
+    miscPerUnit: inputs.miscPerUnit,
+    bankFeePct: inputs.bankFeePct,
+    pricingMode: inputs.pricingMode,
+    markupPct: inputs.markupPct,
+    marginPct: inputs.marginPct,
+    rounding: inputs.rounding,
+    includeBrokerInTaxBase: inputs.includeBrokerInTaxBase,
+  });
   
   // 確定需要添加的費用（根據貿易條件）
   const add = {
-    inlandToPort: supplierTerm === "EXW" && idx(targetTerm) >= idx("FOB"),
-    originPortFees: supplierTerm === "EXW" && idx(targetTerm) >= idx("FOB"),
-    exportDocs: idx(targetTerm) >= idx("FOB"),
-    mainFreight: idx(targetTerm) >= idx("CFR") && idx(supplierTerm) < idx("CFR"),
-    insurance: idx(targetTerm) >= idx("CIF") && idx(supplierTerm) < idx("CIF"),
-    destPortFees: idx(targetTerm) >= idx("DAP") && idx(supplierTerm) < idx("DAP"),
-    importBroker: targetTerm === "DDP" && idx(supplierTerm) < idx("DDP"),
-    lastMile: idx(targetTerm) >= idx("DAP") && idx(supplierTerm) < idx("DAP"),
-    duty: targetTerm === "DDP" && idx(supplierTerm) < idx("DDP"),
-    vat: targetTerm === "DDP" && idx(supplierTerm) < idx("DDP"),
+    inlandToPort: inputs.supplierTerm === "EXW" && idx(inputs.targetTerm) >= idx("FOB"),
+    originPortFees: inputs.supplierTerm === "EXW" && idx(inputs.targetTerm) >= idx("FOB"),
+    exportDocs: idx(inputs.targetTerm) >= idx("FOB"),
+    mainFreight: idx(inputs.targetTerm) >= idx("CFR") && idx(inputs.supplierTerm) < idx("CFR"),
+    insurance: idx(inputs.targetTerm) >= idx("CIF") && idx(inputs.supplierTerm) < idx("CIF"),
+    destPortFees: idx(inputs.targetTerm) >= idx("DAP") && idx(inputs.supplierTerm) < idx("DAP"),
+    importBroker: inputs.targetTerm === "DDP" && idx(inputs.supplierTerm) < idx("DDP"),
+    lastMile: idx(inputs.targetTerm) >= idx("DAP") && idx(inputs.supplierTerm) < idx("DAP"),
+    duty: inputs.targetTerm === "DDP" && idx(inputs.supplierTerm) < idx("DDP"),
+    vat: inputs.targetTerm === "DDP" && idx(inputs.supplierTerm) < idx("DDP"),
   };
-  
-  // 計算保險費（正確公式，但只在需要時計算）
-  const totalInsurance = add.insurance ? 
-    (derived.sumVal + (add.mainFreight ? (inputs.mainFreight || 0) : 0)) * 1.1 * (inputs.insuranceRatePct || 0) / 100 : 0;
   
   // 分類成本（根據貿易條件過濾）
   const fixedCosts = {
@@ -302,7 +324,7 @@ export function calculateCostBreakdown(inputs: Inputs) {
   const logisticsCosts = {
     inlandToPort: add.inlandToPort ? (inputs.inlandToPort || 0) : 0,
     mainFreight: add.mainFreight ? (inputs.mainFreight || 0) : 0,
-    insurance: totalInsurance
+    insurance: quoteResult.insurancePU * derived.qty // 使用統一的保險費計算
   };
   
   const totalFixedCosts = Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0);

@@ -20,6 +20,7 @@ export interface CalculationInputs {
   unitPrice: number;
   inlandToPort: number;
   exportDocsClearance: number;
+  documentFees: number;  // 新增：文件費
   numOfShipments: number;
   originPortFees: number;
   mainFreight: number;
@@ -39,6 +40,28 @@ export interface CalculationInputs {
 }
 
 export interface CalculationResult {
+  // 整票層級（totals）
+  totals: {
+    qty: number;
+    totalGoodsValue: number;
+    totalExportCosts: number;
+    shipmentCostInclGoods: number;
+    totalQuote: number;
+    totalCost: number;
+    totalProfit: number;
+  };
+
+  // 單位層級（perUnit）
+  perUnit: {
+    supplierUnitPrice: number;
+    exportCostPerUnit: number;
+    unitCost: number;
+    suggestedUnitQuote: number;
+    unitProfit: number;
+    margin: number;
+  };
+
+  // 保持向後兼容的欄位
   exwToFob: number;
   fobToCfr: number;
   insurancePU: number;
@@ -87,9 +110,13 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
   // 計算各項費用
   const inlandToPort = add.inlandToPort ? (inputs.inlandToPort || 0) : 0;
   const originPortFees = add.originPortFees ? (inputs.originPortFees || 0) : 0;
+  
+  // 集中定義「出口固定費」（整票金額）
   const exportDocsClearanceTotal = add.exportDocs ? 
     (inputs.exportDocsClearance || 0) * Math.max(0, inputs.numOfShipments || 0) : 0;
-  const exportDocsClearance = exportDocsClearanceTotal / q;
+  const documentFeesTotal = add.exportDocs ? (inputs.documentFees || 0) : 0;
+  const fixedDocs = exportDocsClearanceTotal + documentFeesTotal;
+  
   const mainFreight = add.mainFreight ? (inputs.mainFreight || 0) : 0;
 
   // 保險費計算（統一使用國際標準：貨物價值+運費的110%作為保險基數）
@@ -102,24 +129,30 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
   const lastMileDelivery = add.lastMile ? (inputs.lastMileDelivery || 0) : 0;
 
   // CIF 稅基計算
-  let cifBase = baseGoods + inlandToPort + originPortFees + exportDocsClearance + mainFreight + insurancePU;
+  let cifBase = baseGoods + inlandToPort + originPortFees + exportDocsClearanceTotal + mainFreight + insurancePU;
   if (inputs.includeBrokerInTaxBase) {
     cifBase += destPortFees + importBroker;
   }
 
   const dutyPerUnit = add.duty ? cifBase * ((inputs.dutyPct || 0) / 100) : 0;
-  const vatPerUnit = add.vat ? (cifBase + dutyPerUnit) * ((inputs.vatPct || 0) / 100) : 0;
+  const vatPerUnit = add.vat ? (cifBase + dutyPerUnit) * ((inputs.dutyPct || 0) / 100) : 0;
   const miscPerUnit = inputs.miscPerUnit || 0;
 
   // 各段費用
-  const exwToFob = inlandToPort + exportDocsClearance + originPortFees;
+  const exwToFob = inlandToPort + exportDocsClearanceTotal + originPortFees;
   const fobToCfr = mainFreight;
   const cifToDap = destPortFees + importBroker + lastMileDelivery;
 
-  // 總成本計算
-  const costPerUnit = baseGoods + inlandToPort + exportDocsClearance + originPortFees +
+  // 統一成本定義（明確區分整票與單位層級）
+  const totalExportCosts = fixedDocs + inlandToPort + originPortFees +
     mainFreight + insurancePU + destPortFees + importBroker + lastMileDelivery +
     miscPerUnit + dutyPerUnit + vatPerUnit;
+  
+  // 每單位出口費用
+  const exportCostPerUnit = totalExportCosts / q;
+  
+  // 單位成本（正確：每單位供應商價格 + 每單位出口費用）
+  const costPerUnit = (baseGoods / q) + exportCostPerUnit;
 
   // 報價計算
   const bankRate = (inputs.bankFeePct || 0) / 100;
@@ -132,7 +165,42 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
   const unitProfit = unitQuote - costPerUnit - unitQuote * bankRate;
   const profitMargin = unitQuote > 0 ? unitProfit / unitQuote : 0;
 
+  // 計算整票層級數據
+  const totalGoodsValue = baseGoods;
+  const shipmentCostInclGoods = totalGoodsValue + totalExportCosts;
+  const totalQuote = unitQuote * q;
+  const totalCost = costPerUnit * q;
+  const totalProfit = unitProfit * q;
+
+  // 防呆斷言：確保單位成本計算正確
+  console.assert(
+    Math.abs(costPerUnit - ((baseGoods / q) + (totalExportCosts / q))) < 1e-6,
+    'unitCost mismatch between perUnit and totals layer',
+  );
+
   return {
+    // 整票層級（totals）
+    totals: {
+      qty: q,
+      totalGoodsValue,
+      totalExportCosts,
+      shipmentCostInclGoods,
+      totalQuote,
+      totalCost,
+      totalProfit,
+    },
+
+    // 單位層級（perUnit）
+    perUnit: {
+      supplierUnitPrice: baseGoods / q,
+      exportCostPerUnit,
+      unitCost: costPerUnit,
+      suggestedUnitQuote: unitQuote,
+      unitProfit,
+      margin: profitMargin,
+    },
+
+    // 保持向後兼容的欄位
     exwToFob,
     fobToCfr,
     insurancePU,
@@ -151,9 +219,9 @@ export function calculateQuote(inputs: CalculationInputs): CalculationResult {
     unitProfit,
     profitMargin,
     bankRate,
-    totalCost: costPerUnit * q,
-    totalQuote: unitQuote * q,
-    totalProfit: unitProfit * q,
+    totalCost,
+    totalQuote,
+    totalProfit,
     q,
     baseGoods,
   };
@@ -280,6 +348,7 @@ export function calculateCostBreakdown(inputs: Inputs) {
     unitPrice: derived.sumVal / derived.qty,
     inlandToPort: inputs.inlandToPort,
     exportDocsClearance: inputs.exportDocsClearance,
+    documentFees: inputs.documentFees,  // 新增：文件費
     numOfShipments: inputs.numOfShipments,
     originPortFees: inputs.originPortFees,
     mainFreight: inputs.mainFreight,
@@ -326,11 +395,16 @@ export function calculateCostBreakdown(inputs: Inputs) {
   const logisticsCosts = {
     inlandToPort: add.inlandToPort ? (inputs.inlandToPort || 0) : 0,
     mainFreight: add.mainFreight ? (inputs.mainFreight || 0) : 0,
-    insurance: quoteResult.insurancePU * derived.qty // 使用統一的保險費計算
+    insurance: quoteResult.insurancePU // 修正：直接使用整票保險費，不再乘以數量
   };
   
   const totalFixedCosts = Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0);
   const totalLogisticsCosts = Object.values(logisticsCosts).reduce((sum, cost) => sum + cost, 0);
+  
+  // 統一三個指標欄位定義（與 calculateQuote 保持一致）
+  const totalGoodsValue = derived.sumVal;                    // 只含貨值（不含出口費用）
+  const totalExportCosts = totalFixedCosts + totalLogisticsCosts;  // 只含出口費用（不含貨值）
+  const shipmentCostInclGoods = totalGoodsValue + totalExportCosts; // 含貨值的整票總成本
   
   // 計算分攤
   const costAllocation = calculateCostAllocation(
@@ -339,13 +413,23 @@ export function calculateCostBreakdown(inputs: Inputs) {
     totalLogisticsCosts,
     inputs.allocationMethod || 'hybrid'
   );
+
+  // 防呆斷言：確保 totalExportCosts 與 calculateQuote 一致
+  console.assert(
+    Math.abs(totalExportCosts - quoteResult.totals.totalExportCosts) < 1e-6,
+    `Mismatch: totalExportCosts - costBreakdown: ${totalExportCosts}, calculateQuote: ${quoteResult.totals.totalExportCosts}`
+  );
   
   return {
     fixedCosts,
     logisticsCosts,
     totalFixedCosts,
     totalLogisticsCosts,
-    totalCosts: totalFixedCosts + totalLogisticsCosts,
+    // 統一的三個指標欄位
+    totalGoodsValue,           // 貨值總額
+    totalExportCosts,          // 出口費用總額（不含貨值）
+    shipmentCostInclGoods,     // 含貨值的整票總成本
+    totalCosts: totalExportCosts, // 保持向後兼容（現在等於 totalExportCosts）
     costAllocation
   };
 }
@@ -376,7 +460,8 @@ export function calculateProductQuote(
     supplierUnitPrice = product.unitPrice || 0;
   }
   
-  // 單位成本 = 供應商單價 + 分攤的固定成本 + 分攤的物流成本
+  // 單位成本 = 供應商單價 + 分攤的出口費用（不含貨值）
+  // 修正：避免貨值重複計算
   const unitCost = supplierUnitPrice + productAllocation.perUnitAllocatedCosts;
   
   // 計算建議報價

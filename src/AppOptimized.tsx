@@ -21,7 +21,7 @@ const defaultInputs: Inputs = {
   // 商品管理（默認1個商品）
   products: [{
     id: "default-product",
-    name: "Product 1",
+    name: "商品1",
     inputMode: "perBox",
     boxPrice: 500,
     boxQuantity: 10,
@@ -93,6 +93,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       unitPrice: derived.sumVal / derived.qty,
       inlandToPort: inputs.inlandToPort,
       exportDocsClearance: inputs.exportDocsClearance,
+      documentFees: inputs.documentFees,  // 新增：文件費
       numOfShipments: inputs.numOfShipments,
       originPortFees: inputs.originPortFees,
       mainFreight: inputs.mainFreight,
@@ -118,6 +119,22 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
     calculateAllProductQuotes(inputs), 
     [inputs]
   );
+
+  // 計算毛利率
+  const profitMargin = useMemo(() => {
+    const product = productQuotes.products[0];
+    if (product?.suggestedQuote && product?.unitCost && product.suggestedQuote > 0) {
+      const margin = (product.suggestedQuote - product.unitCost) / product.suggestedQuote;
+      console.log('毛利率計算:', {
+        suggestedQuote: product.suggestedQuote,
+        unitCost: product.unitCost,
+        supplierUnitPrice: product.supplierUnitPrice,
+        margin: margin
+      });
+      return margin;
+    }
+    return 0;
+  }, [productQuotes.products]);
 
   // 更新函數
   const update = useCallback((patch: Partial<Inputs>) => {
@@ -224,16 +241,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
     { key: "r_vat", label: "VAT/GST" },
   ], []);
 
-  // 需要顯示的費用段
-  const segs = useMemo(() => {
-    const segments: string[] = [];
-    if (calc.need_EXW_to_FOB) segments.push("FOB");
-    if (calc.need_FOB_to_CFR) segments.push("CFR");
-    if (calc.need_CFR_to_CIF) segments.push("CIF");
-    if (calc.need_CIF_to_DAP) segments.push("DAP");
-    if (calc.need_DAP_to_DDP) segments.push("DDP");
-    return segments;
-  }, [calc]);
+
 
   return (
     <div className="min-h-screen w-full bg-gray-50 text-gray-900">
@@ -351,7 +359,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
             <div className="mt-4">
               <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                 <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">1</span>
-                {t["1 報價模式（決定利潤計算方式）"]}
+                {t["報價模式（決定利潤計算方式）"]}
               </h3>
               
               <div className="grid grid-cols-2 gap-3 mb-3">
@@ -408,7 +416,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
             <div className="mt-4">
               <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                 <span className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">2</span>
-                {t["2 出口費用包含方式（決定單位成本定義）"]}
+                {t["出口費用包含方式（決定單位成本定義）"]}
               </h3>
               
               <div className="grid grid-cols-2 gap-3">
@@ -449,7 +457,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <span className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-xs font-semibold mr-2">3</span>
-                  {t["3 分攤方式選擇（多產品混裝時用）"]}
+                  {t["分攤方式選擇（多產品混裝時用）"]}
                 </h3>
                 
                 <div className="grid grid-cols-2 gap-3">
@@ -732,24 +740,24 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
           <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
             <div className="text-center">
               <div className="text-sm text-gray-500">{t.unitQuote}</div>
-              <div className="text-2xl font-bold">{labelCurrency(calc.unitQuote)}</div>
+              <div className="text-2xl font-bold">{labelCurrency(productQuotes.products[0]?.suggestedQuote || 0)}</div>
             </div>
             
             <div className="text-center">
               <div className="text-sm text-gray-500">{t.costPerUnit}</div>
-              <div className="text-2xl font-bold">{labelCurrency(calc.costPerUnit)}</div>
+              <div className="text-2xl font-bold">{labelCurrency(productQuotes.products[0]?.unitCost || 0)}</div>
             </div>
             
             <div className="text-center">
               <div className="text-sm text-gray-500">{t.totalQuote}</div>
-              <div className="text-2xl font-bold">{labelCurrency(calc.totalQuote)}</div>
+              <div className="text-2xl font-bold">{labelCurrency(productQuotes.products.reduce((sum, p) => sum + p.totalProductValue, 0))}</div>
             </div>
             
-            <div className="text-center">
-              <div className="text-sm text-gray-500">{t.marginAfterBank}</div>
-              <div className="text-2xl font-bold">{labelPct(calc.profitMargin)}</div>
-              <div className="mt-1 text-xs text-gray-500">{t.bankRateLabel}：{(calc.bankRate * 100).toFixed(2)}%</div>
-            </div>
+                          <div className="text-center">
+                <div className="text-sm text-gray-500">{t.marginAfterBank}</div>
+                              <div className="text-2xl font-bold">{labelPct(profitMargin)}</div>
+                <div className="mt-1 text-xs text-gray-500">{t.bankRateLabel}：{(inputs.bankFeePct || 0).toFixed(2)}%</div>
+              </div>
           </div>
 
           {/* 成本明細表 */}
@@ -768,57 +776,71 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                   <td className="px-3 py-2 text-right">{labelCurrency(derived.sumVal)}</td>
                   <td className="px-3 py-2">{t.startValue}</td>
                 </tr>
-                {segs.includes("FOB") && (
+                {productQuotes.costBreakdown.logisticsCosts.inlandToPort > 0 && (
                   <tr className="border-b">
                     <td className="px-3 py-2">{t.segEXWFOB}</td>
-                    <td className="px-3 py-2 text-right">{labelCurrency(calc.exwToFob * derived.qty)}</td>
-                    <td className="px-3 py-2">{labelCurrency(calc.exwToFob)} / {t.qtyLabel}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.logisticsCosts.inlandToPort)}</td>
+                    <td className="px-3 py-2">{t["工廠到港口"]}</td>
                   </tr>
                 )}
-                {segs.includes("CFR") && (
+                {productQuotes.costBreakdown.fixedCosts.exportDocsClearance > 0 && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t["出口文件"]}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.exportDocsClearance)}</td>
+                    <td className="px-3 py-2">{t["報關文件費用"]}</td>
+                  </tr>
+                )}
+                {productQuotes.costBreakdown.fixedCosts.originPortFees > 0 && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t.segEXWFOB}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.originPortFees)}</td>
+                    <td className="px-3 py-2">{t["港口雜費"]}</td>
+                  </tr>
+                )}
+                {productQuotes.costBreakdown.logisticsCosts.mainFreight > 0 && (
                   <tr className="border-b">
                     <td className="px-3 py-2">{t.segFOBCFR}</td>
-                    <td className="px-3 py-2 text-right">{labelCurrency(calc.fobToCfr * derived.qty)}</td>
-                    <td className="px-3 py-2">{labelCurrency(calc.fobToCfr)} / {t.qtyLabel}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.logisticsCosts.mainFreight)}</td>
+                    <td className="px-3 py-2">{t["海運/空運費用"]}</td>
                   </tr>
                 )}
-                {segs.includes("CIF") && (
+                {productQuotes.costBreakdown.logisticsCosts.insurance > 0 && (
                   <tr className="border-b">
                     <td className="px-3 py-2">{t.segCFRCIF}</td>
-                    <td className="px-3 py-2 text-right">{labelCurrency(calc.insurancePU * derived.qty)}</td>
-                    <td className="px-3 py-2">{labelCurrency(calc.insurancePU)} / {t.qtyLabel}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.logisticsCosts.insurance)}</td>
+                    <td className="px-3 py-2">{t["貨物保險"]}</td>
                   </tr>
                 )}
-                {segs.includes("DAP") && (
+                {productQuotes.costBreakdown.fixedCosts.destPortFees > 0 && (
                   <tr className="border-b">
                     <td className="px-3 py-2">{t.segCIFDAP}</td>
-                    <td className="px-3 py-2 text-right">{labelCurrency(calc.cifToDap * derived.qty)}</td>
-                    <td className="px-3 py-2">{labelCurrency(calc.cifToDap)} / {t.qtyLabel}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.destPortFees)}</td>
+                    <td className="px-3 py-2">{t["目的港雜費"]}</td>
                   </tr>
                 )}
-                {segs.includes("DDP") && (
-                  <>
-                    <tr className="border-b">
-                      <td className="px-3 py-2">{t.dutyRow}</td>
-                      <td className="px-3 py-2 text-right">{labelCurrency(calc.dutyPerUnit * derived.qty)}</td>
-                      <td className="px-3 py-2">{labelCurrency(calc.dutyPerUnit)} / {t.qtyLabel}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="px-3 py-2">{t.vatRow}</td>
-                      <td className="px-3 py-2 text-right">{labelCurrency(calc.vatPerUnit * derived.qty)}</td>
-                      <td className="px-3 py-2">{labelCurrency(calc.vatPerUnit)} / {t.qtyLabel}</td>
-                    </tr>
-                  </>
+                {productQuotes.costBreakdown.fixedCosts.importBroker > 0 && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t["進口代理"]}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.importBroker)}</td>
+                    <td className="px-3 py-2">{t["進口代理費"]}</td>
+                  </tr>
+                )}
+                {productQuotes.costBreakdown.fixedCosts.lastMileDelivery > 0 && (
+                  <tr className="border-b">
+                    <td className="px-3 py-2">{t["末端配送"]}</td>
+                    <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.lastMileDelivery)}</td>
+                    <td className="px-3 py-2">{t["最後一哩配送"]}</td>
+                  </tr>
                 )}
                 <tr className="border-b">
-                  <td className="px-3 py-2">{t.miscRow}</td>
-                  <td className="px-3 py-2 text-right">{labelCurrency(calc.miscPerUnit * derived.qty)}</td>
-                  <td className="px-3 py-2">{labelCurrency(calc.miscPerUnit)} / {t.qtyLabel}</td>
+                  <td className="px-3 py-2">{t["雜項費用"]}</td>
+                  <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.fixedCosts.misc)}</td>
+                  <td className="px-3 py-2">{t["其他雜費"]}</td>
                 </tr>
                 <tr className="border-b font-semibold">
                   <td className="px-3 py-2">{t.totalCost}</td>
-                  <td className="px-3 py-2 text-right">{labelCurrency(calc.totalQuote)}</td>
-                  <td className="px-3 py-2">{t.totalProfitNote}</td>
+                  <td className="px-3 py-2 text-right">{labelCurrency(productQuotes.costBreakdown.totalCosts)}</td>
+                  <td className="px-3 py-2">{t["所有成本項目總計"]}</td>
                 </tr>
               </tbody>
             </table>

@@ -14,6 +14,7 @@ interface ProductQuote {
 interface CostBreakdown {
   fixedCosts: {
     exportDocsClearance: number;
+    documentFees: number;
     originPortFees: number;
     destPortFees: number;
     importBroker: number;
@@ -27,7 +28,11 @@ interface CostBreakdown {
   };
   totalFixedCosts: number;
   totalLogisticsCosts: number;
-  totalCosts: number;
+  // 統一的三個指標欄位
+  totalGoodsValue: number;      // 貨值總額
+  totalExportCosts: number;     // 出口費用總額（不含貨值）
+  shipmentCostInclGoods: number; // 含貨值的整票總成本
+  totalCosts: number;           // 保持向後兼容
 }
 
 interface ProductQuotesProps {
@@ -42,7 +47,7 @@ const ProductQuotes: React.FC<ProductQuotesProps> = ({ products, currency, t, co
     `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const formatNumber = (value: number) => 
-    value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   return (
     <div className="space-y-6">
@@ -126,47 +131,47 @@ const ProductQuotes: React.FC<ProductQuotesProps> = ({ products, currency, t, co
               <tbody>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["內陸拖運"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.logisticsCosts.inlandToPort)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.logisticsCosts.inlandToPort)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["工廠到港口"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["出口文件"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.exportDocsClearance)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.exportDocsClearance)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["報關文件費用"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["起運港費用"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.originPortFees)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.originPortFees)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["港口雜費"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["主運費"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.logisticsCosts.mainFreight)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.logisticsCosts.mainFreight)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["海運/空運費用"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["保險費"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.logisticsCosts.insurance)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.logisticsCosts.insurance)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["貨物保險"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["目的港費用"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.destPortFees)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.destPortFees)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["目的港雜費"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["進口代理"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.importBroker)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.importBroker)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["進口代理費"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["末端配送"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.lastMileDelivery)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.lastMileDelivery)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["最後一哩配送"]}</td>
                 </tr>
                 <tr className="border-b">
                   <td className="px-3 py-2">{t["雜項費用"]}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(costBreakdown.fixedCosts.misc)}</td>
+                  <td className="px-3 py-2 text-left">{formatCurrency(costBreakdown.fixedCosts.misc)}</td>
                   <td className="px-3 py-2 text-gray-600">{t["其他雜費"]}</td>
                 </tr>
                 <tr className="bg-gray-100 font-semibold">

@@ -69,6 +69,7 @@ describe('calculateQuote', () => {
     rounding: 1,
     inlandToPort: 0,
     exportDocsClearance: 0,
+    documentFees: 0,  // 新增：文件費
     numOfShipments: 0,
     originPortFees: 0,
     mainFreight: 10,

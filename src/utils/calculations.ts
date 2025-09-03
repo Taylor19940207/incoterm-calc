@@ -1,4 +1,4 @@
-import { Inputs, Product, AllocationMethod, Term } from '../types';
+import { Inputs, Product, AllocationMethod, Term, CostItem, ExportDocsMode } from '../types';
 
 const STEP_ORDER: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
 
@@ -36,6 +36,9 @@ export interface CalculationInputs {
   markupPct: number;
   marginPct: number;
   rounding: number;
+  exportDocsMode: ExportDocsMode;
+  exportCostInclusion: "include" | "exclude";
+  allocationMethod: AllocationMethod;
   includeBrokerInTaxBase: boolean;
 }
 
@@ -346,24 +349,27 @@ export function calculateCostBreakdown(inputs: Inputs) {
     targetTerm: inputs.targetTerm,
     qty: derived.qty,
     unitPrice: derived.sumVal / derived.qty,
-    inlandToPort: inputs.inlandToPort,
-    exportDocsClearance: inputs.exportDocsClearance,
-    documentFees: inputs.documentFees,  // 新增：文件費
+    inlandToPort: inputs.inlandToPort.shipmentTotal,
+    exportDocsClearance: inputs.exportDocsClearance.shipmentTotal,
+    documentFees: inputs.documentFees.shipmentTotal,  // 新增：文件費
     numOfShipments: inputs.numOfShipments,
-    originPortFees: inputs.originPortFees,
-    mainFreight: inputs.mainFreight,
+    originPortFees: inputs.originPortFees.shipmentTotal,
+    mainFreight: inputs.mainFreight.shipmentTotal,
     insuranceRatePct: inputs.insuranceRatePct,
-    destPortFees: inputs.destPortFees,
-    importBroker: inputs.importBroker,
-    lastMileDelivery: inputs.lastMileDelivery,
+    destPortFees: inputs.destPortFees.shipmentTotal,
+    importBroker: inputs.importBroker.shipmentTotal,
+    lastMileDelivery: inputs.lastMileDelivery.shipmentTotal,
     dutyPct: inputs.dutyPct,
     vatPct: inputs.vatPct,
-    miscPerUnit: inputs.miscPerUnit,
+    miscPerUnit: inputs.misc.shipmentTotal,
     bankFeePct: inputs.bankFeePct,
     pricingMode: inputs.pricingMode,
     markupPct: inputs.markupPct,
     marginPct: inputs.marginPct,
     rounding: inputs.rounding,
+    exportDocsMode: inputs.exportDocsMode,
+    exportCostInclusion: inputs.exportCostInclusion,
+    allocationMethod: inputs.allocationMethod,
     includeBrokerInTaxBase: inputs.includeBrokerInTaxBase,
   });
   
@@ -383,18 +389,18 @@ export function calculateCostBreakdown(inputs: Inputs) {
   
   // 分類成本（根據貿易條件過濾）
   const fixedCosts = {
-    exportDocsClearance: add.exportDocs ? (inputs.exportDocsClearance || 0) : 0,
-    documentFees: add.exportDocs ? (inputs.documentFees || 0) : 0,
-    originPortFees: add.originPortFees ? (inputs.originPortFees || 0) : 0,
-    destPortFees: add.destPortFees ? (inputs.destPortFees || 0) : 0,
-    importBroker: add.importBroker ? (inputs.importBroker || 0) : 0,
-    lastMileDelivery: add.lastMile ? (inputs.lastMileDelivery || 0) : 0,
-    misc: (inputs.miscPerUnit || 0) * derived.qty
+    exportDocsClearance: add.exportDocs ? (inputs.exportDocsClearance.shipmentTotal || 0) : 0,
+    documentFees: add.exportDocs ? (inputs.documentFees.shipmentTotal || 0) : 0,
+    originPortFees: add.originPortFees ? (inputs.originPortFees.shipmentTotal || 0) : 0,
+    destPortFees: add.destPortFees ? (inputs.destPortFees.shipmentTotal || 0) : 0,
+    importBroker: add.importBroker ? (inputs.importBroker.shipmentTotal || 0) : 0,
+    lastMileDelivery: add.lastMile ? (inputs.lastMileDelivery.shipmentTotal || 0) : 0,
+    misc: (inputs.misc.shipmentTotal || 0) * derived.qty
   };
   
   const logisticsCosts = {
-    inlandToPort: add.inlandToPort ? (inputs.inlandToPort || 0) : 0,
-    mainFreight: add.mainFreight ? (inputs.mainFreight || 0) : 0,
+    inlandToPort: add.inlandToPort ? (inputs.inlandToPort.shipmentTotal || 0) : 0,
+    mainFreight: add.mainFreight ? (inputs.mainFreight.shipmentTotal || 0) : 0,
     insurance: quoteResult.insurancePU // 修正：直接使用整票保險費，不再乘以數量
   };
   

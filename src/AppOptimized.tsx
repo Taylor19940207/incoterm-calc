@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Inputs, Product, Term } from './types';
 import { calculateQuote, calculateDerivedValues, calculateAllProductQuotes } from './utils/calculations';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -7,6 +7,7 @@ import InputField from './components/InputField';
 import ProductManager from './components/ProductManager';
 import ProductQuotes from './components/ProductQuotes';
 import PerformanceMonitor from './components/PerformanceMonitor';
+import { TestSuite } from './components/TestSuite';
 
 
 
@@ -50,21 +51,21 @@ const defaultInputs: Inputs = {
   // 第三層：分攤方式選擇 - 預設智能混合分攤
   allocationMethod: "hybrid",
   
-  // 成本參數（整票固定費用）
-  exportDocsClearance: 20000,
-  documentFees: 5000,
-  inlandToPort: 15000,
-  originPortFees: 8000,
-  mainFreight: 100000,
+  // 成本參數（重構為 CostItem）
+  exportDocsClearance: { shipmentTotal: 20000, scaleWithQty: false },
+  documentFees: { shipmentTotal: 5000, scaleWithQty: false },
+  inlandToPort: { shipmentTotal: 15000, scaleWithQty: false },
+  originPortFees: { shipmentTotal: 8000, scaleWithQty: false },
+  mainFreight: { shipmentTotal: 100000, scaleWithQty: false },
   insuranceRatePct: 0.2,
-  destPortFees: 0,
-  importBroker: 0,
-  lastMileDelivery: 0,
+  destPortFees: { shipmentTotal: 0, scaleWithQty: false },
+  importBroker: { shipmentTotal: 0, scaleWithQty: false },
+  lastMileDelivery: { shipmentTotal: 0, scaleWithQty: false },
   dutyPct: 0,
   vatPct: 0,
-  miscPerUnit: 0,
+  misc: { shipmentTotal: 0, scaleWithQty: false },
   includeBrokerInTaxBase: false,
-  exportDocsMode: "total",
+  exportDocsMode: "byShipment",
   numOfShipments: 1,
 };
 
@@ -76,6 +77,7 @@ const perUnitFields = new Set([
 
 const IncotermQuoteCalculatorOptimized: React.FC = () => {
   const [inputs, setInputs] = useLocalStorage<Inputs>("incoterm-inputs", defaultInputs);
+  const [showTestSuite, setShowTestSuite] = useState(false);
   const t = dict[inputs.lang];
 
   // 計算衍生值
@@ -91,24 +93,27 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       targetTerm: inputs.targetTerm,
       qty: derived.qty,
       unitPrice: derived.sumVal / derived.qty,
-      inlandToPort: inputs.inlandToPort,
-      exportDocsClearance: inputs.exportDocsClearance,
-      documentFees: inputs.documentFees,  // 新增：文件費
+      inlandToPort: inputs.inlandToPort.shipmentTotal,
+      exportDocsClearance: inputs.exportDocsClearance.shipmentTotal,
+      documentFees: inputs.documentFees.shipmentTotal,  // 新增：文件費
       numOfShipments: inputs.numOfShipments,
-      originPortFees: inputs.originPortFees,
-      mainFreight: inputs.mainFreight,
+      originPortFees: inputs.originPortFees.shipmentTotal,
+      mainFreight: inputs.mainFreight.shipmentTotal,
       insuranceRatePct: inputs.insuranceRatePct,
-      destPortFees: inputs.destPortFees,
-      importBroker: inputs.importBroker,
-      lastMileDelivery: inputs.lastMileDelivery,
+      destPortFees: inputs.destPortFees.shipmentTotal,
+      importBroker: inputs.importBroker.shipmentTotal,
+      lastMileDelivery: inputs.lastMileDelivery.shipmentTotal,
       dutyPct: inputs.dutyPct,
       vatPct: inputs.vatPct,
-      miscPerUnit: inputs.miscPerUnit,
+      miscPerUnit: inputs.misc.shipmentTotal,
       bankFeePct: inputs.bankFeePct,
       pricingMode: inputs.pricingMode,
       markupPct: inputs.markupPct,
       marginPct: inputs.marginPct,
       rounding: inputs.rounding,
+      exportDocsMode: inputs.exportDocsMode,
+      exportCostInclusion: inputs.exportCostInclusion,
+      allocationMethod: inputs.allocationMethod,
       includeBrokerInTaxBase: inputs.includeBrokerInTaxBase,
     }), 
     [inputs, derived.qty, derived.sumVal]
@@ -149,11 +154,39 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
   // 獲取顯示值
   const getDisplayValue = useCallback((name: keyof Inputs) => {
     const value = inputs[name];
+    
+    // 處理 CostItem 結構
+    if (typeof value === 'object' && value !== null && 'shipmentTotal' in (value as any)) {
+      const costItem = value as any;
+      
+      // 報關費特殊處理
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "byShipment") {
+        return String(costItem.shipmentTotal);
+      }
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "byCustomsEntries") {
+        const per = costItem.shipmentTotal;
+        return String(per * Math.max(0, inputs.numOfShipments || 0));
+      }
+      
+      // 一般 CostItem 欄位
+      if (inputs.inputMode === "total") {
+        // 整票模式：顯示整票金額
+        return String(costItem.shipmentTotal);
+      } else {
+        // 每單位模式：顯示每單位金額
+        if (perUnitFields.has(name as string)) {
+          return String(derived.qty > 0 ? costItem.shipmentTotal / derived.qty : 0);
+        }
+        return String(costItem.shipmentTotal);
+      }
+    }
+    
+    // 處理數字類型（向後兼容）
     if (typeof value === 'number') {
-      if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "byShipment") {
         return String(value);
       }
-      if (name === "exportDocsClearance" && inputs.exportDocsMode === "perUnit") {
+      if (name === "exportDocsClearance" && inputs.exportDocsMode === "byCustomsEntries") {
         const per = value;
         return String(per * Math.max(0, inputs.numOfShipments || 0));
       }
@@ -163,6 +196,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       }
       return String(value);
     }
+    
     return String(value || '');
   }, [inputs, derived.qty]);
 
@@ -170,14 +204,14 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
   const setFromDisplay = useCallback((name: keyof Inputs, displayValue: string) => {
     const value = Number(displayValue) || 0;
     
-    if (name === "exportDocsClearance" && inputs.exportDocsMode === "total") {
-      update({ [name]: value });
+    if (name === "exportDocsClearance" && inputs.exportDocsMode === "byShipment") {
+      update({ [name]: { shipmentTotal: value, scaleWithQty: false } });
       return;
     }
     
-    if (name === "exportDocsClearance" && inputs.exportDocsMode === "perUnit") {
+    if (name === "exportDocsClearance" && inputs.exportDocsMode === "byCustomsEntries") {
       const per = derived.qty > 0 ? value / Math.max(0, inputs.numOfShipments || 0) : 0;
-      update({ [name]: per });
+      update({ [name]: { shipmentTotal: per, scaleWithQty: false } });
       return;
     }
     
@@ -247,6 +281,8 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
     <div className="min-h-screen w-full bg-gray-50 text-gray-900">
       <PerformanceMonitor name="IncotermCalculator" />
       
+      {/* 測試組件 */}
+      {showTestSuite && <TestSuite />}
       
       <div className="mx-auto max-w-6xl p-4 md:p-8">
         <header className="mb-6 flex items-center justify-between gap-4">
@@ -269,6 +305,20 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
             </div>
           </div>
           
+          {/* 測試組件切換按鈕 */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTestSuite(!showTestSuite)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                showTestSuite 
+                  ? 'bg-red-600 text-white hover:bg-red-700' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {showTestSuite ? '🧪 隱藏測試' : '🧪 顯示測試'}
+            </button>
+          </div>
+          
           <button 
             className="rounded-2xl border px-3 py-2 text-sm hover:bg-white" 
             onClick={handleReset}
@@ -287,17 +337,15 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
             {/* 貨幣選擇 */}
             <div className="mb-4">
               <label className="text-sm text-gray-600">{t.currency}</label>
-              <select
-                className="mt-1 w-full rounded-2xl border px-3 py-2"
-                value={inputs.currency}
-                onChange={(e) => update({ currency: e.target.value })}
-              >
-                <option value="JPY">JPY</option>
-                <option value="USD">USD</option>
-                <option value="CNY">CNY</option>
-                <option value="EUR">EUR</option>
-                <option value="TWD">TWD</option>
-              </select>
+                              <select
+                  className="mt-1 w-full rounded-2xl border px-3 py-2"
+                  value={inputs.currency}
+                  onChange={(e) => update({ currency: e.target.value as "JPY" | "USD" | "CNY" })}
+                >
+                  <option value="JPY">JPY</option>
+                  <option value="USD">USD</option>
+                  <option value="CNY">CNY</option>
+                </select>
             </div>
 
             {/* 商品管理 */}
@@ -657,13 +705,13 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                 note={inputs.targetTerm !== "DDP" ? t.notApplicable : t.includeNote}
               />
               
-              <InputField
-                name="miscPerUnit"
-                label={t.miscPerUnit}
-                value={getDisplayValue("miscPerUnit")}
-                onChange={handleInputChange}
-                unit={inputs.currency}
-              />
+                              <InputField
+                  name="misc"
+                  label={t.miscPerUnit}
+                  value={getDisplayValue("misc")}
+                  onChange={handleInputChange}
+                  unit={inputs.currency}
+                />
             </div>
 
             {/* 稅基設置 */}

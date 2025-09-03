@@ -80,6 +80,9 @@ describe('calculateQuote', () => {
     dutyPct: 0,
     vatPct: 0,
     miscPerUnit: 5,
+    exportDocsMode: 'byShipment' as const,
+    exportCostInclusion: 'include' as const,
+    allocationMethod: 'hybrid' as const,
     includeBrokerInTaxBase: false,
   };
 

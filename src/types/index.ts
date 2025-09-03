@@ -29,10 +29,19 @@ export interface Product {
   weight: number;         // 單箱重量
 }
 
+// 新增：成本項目結構
+export interface CostItem {
+  shipmentTotal: number;   // 主存：整票
+  scaleWithQty?: boolean;  // 是否隨數量動
+}
+
+// 新增：出口文件模式
+export type ExportDocsMode = "byShipment" | "byCustomsEntries";
+
 export interface Inputs {
   // 基本設置
-  currency: string;
-  lang: Lang;
+  currency: "JPY" | "USD" | "CNY";
+  lang: "zh" | "ja";
   
   // 商品管理
   products: Product[];
@@ -42,36 +51,36 @@ export interface Inputs {
   targetTerm: Term;
   
   // 輸入模式
-  inputMode: InputMode;
+  inputMode: "total" | "perUnit";
   
-  // 第一層：定價設置
-  pricingMode: PricingMode;
+  // 定價設置
+  pricingMode: "markup" | "margin";
   markupPct: number;
   marginPct: number;
   bankFeePct: number;
   rounding: number;
   
   // 第二層：出口費用包含方式
-  exportCostInclusion: ExportCostInclusion;
+  exportCostInclusion: "include" | "exclude";
   
-  // 第三層：分攤方式選擇（僅在包含出口費用時顯示）
-  allocationMethod: AllocationMethod;
+  // 第三層：分攤方式選擇
+  allocationMethod: "quantity" | "volume" | "value" | "hybrid";
   
-  // 成本參數（整票固定費用）
-  exportDocsClearance: number;  // 報關費
-  documentFees: number;         // 文件費
-  inlandToPort: number;         // 拖車費
-  originPortFees: number;       // 港口雜費
-  mainFreight: number;          // 海運費
-  insuranceRatePct: number;     // 保險費率
-  destPortFees: number;
-  importBroker: number;
-  lastMileDelivery: number;
+  // 成本參數（重構為 CostItem）
+  exportDocsClearance: CostItem;
+  documentFees: CostItem;
+  inlandToPort: CostItem;
+  originPortFees: CostItem;
+  mainFreight: CostItem;
+  insuranceRatePct: number;
+  destPortFees: CostItem;
+  importBroker: CostItem;
+  lastMileDelivery: CostItem;
   dutyPct: number;
   vatPct: number;
-  miscPerUnit: number;
+  misc: CostItem;
   includeBrokerInTaxBase: boolean;
-  exportDocsMode: "perUnit" | "total";
+  exportDocsMode: ExportDocsMode;
   numOfShipments: number;
 }
 

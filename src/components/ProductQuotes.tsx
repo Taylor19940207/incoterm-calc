@@ -124,7 +124,7 @@ const ProductQuotes: React.FC<ProductQuotesProps> = ({ products, currency, t, co
               <thead>
                 <tr className="bg-gray-100 text-left">
                   <th className="px-3 py-2">{t["成本項目"]}</th>
-                  <th className="px-3 py-2 text-right">{t["金額"]}</th>
+                  <th className="px-3 py-2 text-left">{t["金額"]}</th>
                   <th className="px-3 py-2">{t["說明"]}</th>
                 </tr>
               </thead>

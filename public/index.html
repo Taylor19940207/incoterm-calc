@@ -2,22 +2,67 @@
 <html lang="zh-TW">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon" href="%PUBLIC_URL%/icon192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-    <meta name="theme-color" content="#1f2937" />
+    <meta name="theme-color" content="#2563eb" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="報價計算器" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Incoterm Calc" />
     <meta
       name="description"
-      content="專業的國際貿易報價計算工具，支援多種貿易條件和成本分攤方式"
+      content="專業的 Incoterm 計算工具，支援離線使用"
     />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!-- iOS 主畫面圖示 - 多尺寸支援 -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icon180.png" sizes="180x180" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icon152.png" sizes="152x152" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icon120.png" sizes="120x120" />
+    <!-- 主要 apple-touch-icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icon512.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>Incoterm 報價計算器</title>
+    <title>Incoterm Calculator - 離線版</title>
+    
+    <!-- PWA 離線支援 -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Incoterm Calc" />
+    <meta name="msapplication-TileColor" content="#2563eb" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- 預載入關鍵資源 -->
+    <link rel="preload" href="%PUBLIC_URL%/static/js/bundle.js" as="script" />
+    <link rel="preload" href="%PUBLIC_URL%/static/css/main.css" as="style" />
   </head>
   <body>
     <noscript>您需要啟用 JavaScript 才能運行此應用。</noscript>
     <div id="root"></div>
+    
+    <!-- 簡單的 PWA 腳本 -->
+    <script>
+      // 註冊 Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('Service Worker 註冊成功:', registration);
+            })
+            .catch(error => {
+              console.log('Service Worker 註冊失敗:', error);
+            });
+        });
+      }
+      
+      // 處理安裝提示
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log('可以安裝應用程式');
+      });
+      
+      // 監聽安裝完成
+      window.addEventListener('appinstalled', () => {
+        console.log('應用程式已安裝');
+        deferredPrompt = null;
+      });
+    </script>
   </body>
 </html>

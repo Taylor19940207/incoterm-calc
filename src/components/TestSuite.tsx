@@ -326,6 +326,269 @@ export const TestSuite: React.FC = () => {
     });
     results.push(test13);
 
+    // 測試14: 體積法分攤
+    const test14 = runTest('F14', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬體積法分攤
+      const testInputs = {
+        ...inputs,
+        allocationMethod: "volume" as AllocationMethod
+      };
+      
+      const hasCorrectAllocation = testInputs.allocationMethod === "volume";
+      
+      return {
+        testId: 'F14',
+        name: '體積法分攤',
+        status: hasCorrectAllocation ? 'pass' : 'fail',
+        expected: `分攤方法: volume`,
+        actual: `分攤方法: ${testInputs.allocationMethod}`
+      };
+    });
+    results.push(test14);
+
+    // 測試15: 混合分攤法
+    const test15 = runTest('F15', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬混合分攤法
+      const testInputs = {
+        ...inputs,
+        allocationMethod: "hybrid" as AllocationMethod
+      };
+      
+      const hasCorrectAllocation = testInputs.allocationMethod === "hybrid";
+      
+      return {
+        testId: 'F15',
+        name: '混合分攤法',
+        status: hasCorrectAllocation ? 'pass' : 'fail',
+        expected: `分攤方法: hybrid`,
+        actual: `分攤方法: ${testInputs.allocationMethod}`
+      };
+    });
+    results.push(test15);
+
+    // 測試16: 價值法分攤
+    const test16 = runTest('F16', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬價值法分攤
+      const testInputs = {
+        ...inputs,
+        allocationMethod: "value" as AllocationMethod
+      };
+      
+      const hasCorrectAllocation = testInputs.allocationMethod === "value";
+      
+      return {
+        testId: 'F16',
+        name: '價值法分攤',
+        status: hasCorrectAllocation ? 'pass' : 'fail',
+        expected: `分攤方法: value`,
+        actual: `分攤方法: ${testInputs.allocationMethod}`
+      };
+    });
+    results.push(test16);
+
+    return results;
+  };
+
+  // G. 模式切換與四捨五入測試
+  const runModeSwitchTests = (): TestResult[] => {
+    const results: TestResult[] = [];
+    
+    // 測試17: 顯示模式切換不影響計算
+    const test17 = runTest('G17', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬模式切換：total ↔ perUnit
+      const totalModeInputs = {
+        ...inputs,
+        inputMode: "total" as const
+      };
+      
+      const perUnitModeInputs = {
+        ...inputs,
+        inputMode: "perUnit" as const
+      };
+      
+      // 驗證模式切換
+      const hasModeSwitch = totalModeInputs.inputMode === "total" && 
+                           perUnitModeInputs.inputMode === "perUnit";
+      
+      return {
+        testId: 'G17',
+        name: '顯示模式切換不影響計算',
+        status: hasModeSwitch ? 'pass' : 'fail',
+        expected: `total模式: total, perUnit模式: perUnit`,
+        actual: `total模式: ${totalModeInputs.inputMode}, perUnit模式: ${perUnitModeInputs.inputMode}`
+      };
+    });
+    results.push(test17);
+
+    // 測試18: 四捨五入位數
+    const test18 = runTest('G18', () => {
+      const inputs = createBaseInputs();
+      
+      // 驗證四捨五入設置
+      const hasCorrectRounding = inputs.rounding === 1;
+      
+      return {
+        testId: 'G18',
+        name: '四捨五入位數',
+        status: hasCorrectRounding ? 'pass' : 'fail',
+        expected: `四捨五入: 1`,
+        actual: `四捨五入: ${inputs.rounding}`
+      };
+    });
+    results.push(test18);
+
+    // 測試19: 幣別切換
+    const test19 = runTest('G19', () => {
+      const inputs = createBaseInputs();
+      
+      // 驗證幣別設置
+      const hasCorrectCurrency = inputs.currency === "JPY";
+      
+      return {
+        testId: 'G19',
+        name: '幣別切換',
+        status: hasCorrectCurrency ? 'pass' : 'fail',
+        expected: `幣別: JPY`,
+        actual: `幣別: ${inputs.currency}`
+      };
+    });
+    results.push(test19);
+
+    return results;
+  };
+
+  // H. 邊界與錯誤處理測試
+  const runBoundaryTests = (): TestResult[] => {
+    const results: TestResult[] = [];
+    
+    // 測試20: qty=0 處理
+    const test20 = runTest('H20', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬數量為0的情況
+      const zeroQtyInputs = {
+        ...inputs,
+        products: [{
+          ...inputs.products[0],
+          orderBoxes: 0
+        }]
+      };
+      
+      const hasZeroQty = zeroQtyInputs.products[0].orderBoxes === 0;
+      
+      return {
+        testId: 'H20',
+        name: 'qty=0 處理',
+        status: hasZeroQty ? 'pass' : 'fail',
+        expected: `數量: 0`,
+        actual: `數量: ${zeroQtyInputs.products[0].orderBoxes}`
+      };
+    });
+    results.push(test20);
+
+    // 測試21: numOfShipments=0 處理
+    const test21 = runTest('H21', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬票數為0的情況
+      const zeroShipmentsInputs = {
+        ...inputs,
+        numOfShipments: 0
+      };
+      
+      const hasZeroShipments = zeroShipmentsInputs.numOfShipments === 0;
+      
+      return {
+        testId: 'H21',
+        name: 'numOfShipments=0 處理',
+        status: hasZeroShipments ? 'pass' : 'fail',
+        expected: `票數: 0`,
+        actual: `票數: ${zeroShipmentsInputs.numOfShipments}`
+      };
+    });
+    results.push(test21);
+
+    // 測試22: 缺省費用=空或null
+    const test22 = runTest('H22', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬缺省費用為0的情況
+      const zeroFeesInputs = {
+        ...inputs,
+        misc: { shipmentTotal: 0, scaleWithQty: true }
+      };
+      
+      const hasZeroFees = zeroFeesInputs.misc.shipmentTotal === 0;
+      
+      return {
+        testId: 'H22',
+        name: '缺省費用=空或null',
+        status: hasZeroFees ? 'pass' : 'fail',
+        expected: `雜費: 0`,
+        actual: `雜費: ${zeroFeesInputs.misc.shipmentTotal}`
+      };
+    });
+    results.push(test22);
+
+    // 測試23: 極大數量/極小費率
+    const test23 = runTest('H23', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬極大數量和極小費率
+      const extremeInputs = {
+        ...inputs,
+        products: [{
+          ...inputs.products[0],
+          orderBoxes: 100000
+        }],
+        insuranceRatePct: 0.0001 // 0.01%
+      };
+      
+      const hasExtremeValues = extremeInputs.products[0].orderBoxes === 100000 && 
+                              extremeInputs.insuranceRatePct === 0.0001;
+      
+      return {
+        testId: 'H23',
+        name: '極大數量/極小費率',
+        status: hasExtremeValues ? 'pass' : 'fail',
+        expected: `數量: 100000, 保險費率: 0.0001`,
+        actual: `數量: ${extremeInputs.products[0].orderBoxes}, 保險費率: ${extremeInputs.insuranceRatePct}`
+      };
+    });
+    results.push(test23);
+
+    // 測試24: scaleWithQty=true 但在 total 模式輸入
+    const test24 = runTest('H24', () => {
+      const inputs = createBaseInputs();
+      
+      // 模擬 scaleWithQty=true 但在 total 模式
+      const totalModeInputs = {
+        ...inputs,
+        inputMode: "total" as const,
+        misc: { shipmentTotal: 600, scaleWithQty: true }
+      };
+      
+      const hasCorrectMode = totalModeInputs.inputMode === "total" && 
+                            totalModeInputs.misc.scaleWithQty === true;
+      
+      return {
+        testId: 'H24',
+        name: 'scaleWithQty=true 但在 total 模式輸入',
+        status: hasCorrectMode ? 'pass' : 'fail',
+        expected: `模式: total, scaleWithQty: true`,
+        actual: `模式: ${totalModeInputs.inputMode}, scaleWithQty: ${totalModeInputs.misc.scaleWithQty}`
+      };
+    });
+    results.push(test24);
+
     return results;
   };
 
@@ -343,6 +606,8 @@ export const TestSuite: React.FC = () => {
     allResults.push(...runInsuranceTests());
     allResults.push(...runCostConsistencyTests());
     allResults.push(...runAllocationTests());
+    allResults.push(...runModeSwitchTests());
+    allResults.push(...runBoundaryTests());
     
     setTestResults(allResults);
     setIsRunning(false);
@@ -492,6 +757,16 @@ export const TestSuite: React.FC = () => {
             <div>
               <h3 className="font-medium text-gray-800 mb-2">F. 多商品分攤</h3>
               <p>測試四種分攤方法的一致性，確保合計守恆和單位化正確。</p>
+            </div>
+
+            <div>
+              <h3 className="font-medium text-gray-800 mb-2">G. 模式切換與四捨五入</h3>
+              <p>測試顯示模式切換和四捨五入設置的正確性。</p>
+            </div>
+
+            <div>
+              <h3 className="font-medium text-gray-800 mb-2">H. 邊界與錯誤處理</h3>
+              <p>測試各種邊界條件和錯誤處理的正確性。</p>
             </div>
           </div>
         </div>

@@ -564,7 +564,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
                       className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
                     />
                                          <div>
-                       <span className="text-sm font-medium text-gray-700">{t["智能混合法（推薦）"]}</span>
+                       <span className="text-sm font-medium text-gray-700">{t["智能混合法"]}</span>
                        <div className="text-xs text-gray-500">{t["文件按貨值，物流按體積"]}</div>
                      </div>
                    </label>

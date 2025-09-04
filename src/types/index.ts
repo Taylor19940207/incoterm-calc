@@ -6,6 +6,9 @@ export type PricingMode = "markup" | "margin";
 export type InputMode = "perUnit" | "total";
 export type ProductInputMode = "perBox" | "perUnit";
 
+// 物流方式
+export type TransportMode = 'air' | 'courier' | 'sea' | 'truck';
+
 // 第二層：出口費用包含方式
 export type ExportCostInclusion = "exclude" | "include";
 
@@ -24,9 +27,11 @@ export interface Product {
   // 單個模式輸入
   unitPrice?: number;     // 單個價格
   totalQuantity?: number; // 總數量
-  // 其他屬性
-  volume: number;         // 單箱體積
-  weight: number;         // 單箱重量
+  // 尺寸和重量（內部存儲單位）
+  lengthM: number;        // 長度 (m)
+  widthM: number;         // 寬度 (m)
+  heightM: number;        // 高度 (m)
+  weightKg: number;       // 每箱重量 (kg)
 }
 
 // 新增：成本項目結構
@@ -37,6 +42,40 @@ export interface CostItem {
 
 // 新增：出口文件模式
 export type ExportDocsMode = "byShipment" | "byCustomsEntries";
+
+// 新增：物流配置
+export interface ShippingConfig {
+  mode: TransportMode;
+  volumetricDivisor: number | null;
+  userOverride?: number;  // 用戶自定義覆寫
+}
+
+// 新增：用戶偏好
+export interface UserPreferences {
+  dimensionUnit: 'mm' | 'cm';
+  weightUnit: 'kg' | 'g';
+  defaultTransport: TransportMode;
+  divisorOverrides: Record<TransportMode, number | null>;
+  showAdvanced: boolean;
+  rounding: { cbm: number; weight: number };
+  currency: string;
+}
+
+// 新增：驗證狀態
+export interface ValidationState {
+  errors: ValidationError[];    // 硬錯誤（紅）
+  warnings: ValidationWarning[]; // 黃牌警告
+}
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationWarning {
+  field: string;
+  message: string;
+}
 
 export interface Inputs {
   // 基本設置
@@ -50,8 +89,8 @@ export interface Inputs {
   supplierTerm: Term;
   targetTerm: Term;
   
-  // 費用顯示方式
-  costViewMode: "total" | "perUnit";
+  // 輸入模式
+  inputMode: "total" | "perUnit";
   
   // 定價設置
   pricingMode: "markup" | "margin";
@@ -64,7 +103,10 @@ export interface Inputs {
   exportCostInclusion: "include" | "exclude";
   
   // 第三層：分攤方式選擇
-  allocationMethod: "quantity" | "volume" | "value" | "hybrid";
+  allocationMethod: AllocationMethod;
+  
+  // 新增：物流配置
+  shippingConfig: ShippingConfig;
   
   // 成本參數（重構為 CostItem）
   exportDocsClearance: CostItem;

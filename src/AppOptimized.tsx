@@ -8,7 +8,7 @@ import ProductManager from './components/ProductManager';
 import ProductQuotes from './components/ProductQuotes';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import { TestSuite } from './components/TestSuite';
-
+import { NewFeaturesDemo } from './components/NewFeaturesDemo';
 
 
 const TERMS: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
@@ -27,16 +27,18 @@ const defaultInputs: Inputs = {
     boxPrice: 500,
     boxQuantity: 10,
     orderBoxes: 10,
-    volume: 0.1,
-    weight: 1.0
+    lengthM: 0.1,
+    widthM: 0.1,
+    heightM: 0.1,
+    weightKg: 1.0
   }],
   
   // 貿易條件
   supplierTerm: "FOB",
   targetTerm: "CIF",
   
-  // 費用顯示方式 - 預設整票總額
-  costViewMode: "total",
+  // 輸入模式 - 改為預設整票總額
+  inputMode: "total",
   
   // 定價設置
   pricingMode: "markup",
@@ -50,6 +52,13 @@ const defaultInputs: Inputs = {
   
   // 第三層：分攤方式選擇 - 預設智能混合分攤
   allocationMethod: "hybrid",
+  
+  // 新增：物流配置
+  shippingConfig: {
+    mode: "air",
+    volumetricDivisor: 6000,
+    userOverride: undefined
+  },
   
   // 成本參數（重構為 CostItem）
   exportDocsClearance: { shipmentTotal: 20000, scaleWithQty: false },
@@ -75,9 +84,10 @@ const perUnitFields = new Set([
   "importBroker", "lastMileDelivery", "miscPerUnit"
 ]);
 
-const IncotermQuoteCalculatorOptimized: React.FC = () => {
+export default function AppOptimized() {
   const [inputs, setInputs] = useLocalStorage<Inputs>("incoterm-inputs", defaultInputs);
   const [showTestSuite, setShowTestSuite] = useState(false);
+  const [showNewFeatures, setShowNewFeatures] = useState(false);
   const t = dict[inputs.lang];
 
   // 計算衍生值
@@ -169,7 +179,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       }
       
       // 一般 CostItem 欄位
-      if (inputs.costViewMode === "total") {
+      if (inputs.inputMode === "total") {
         // 整票模式：顯示整票金額
         return String(costItem.shipmentTotal);
       } else {
@@ -191,7 +201,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
         return String(per * Math.max(0, inputs.numOfShipments || 0));
       }
       
-      if (inputs.costViewMode === "total" && perUnitFields.has(name as string)) {
+      if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
         return String(value * derived.qty);
       }
       return String(value);
@@ -215,7 +225,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       return;
     }
     
-    if (inputs.costViewMode === "total" && perUnitFields.has(name as string)) {
+    if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
       const perUnit = derived.qty > 0 ? value / derived.qty : 0;
       update({ [name]: perUnit });
       return;
@@ -275,10 +285,36 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
     { key: "r_vat", label: "VAT/GST" },
   ], []);
 
-
+  // 如果顯示新功能展示頁面
+  if (showNewFeatures) {
+    return <NewFeaturesDemo />;
+  }
 
   return (
     <div className="min-h-screen w-full bg-gray-50 text-gray-900">
+      {/* 頂部導航欄 */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <h1 className="text-xl font-bold text-gray-900">Incoterm 計算器</h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNewFeatures(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                查看新功能
+              </button>
+              <button
+                onClick={() => setShowTestSuite(!showTestSuite)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                {showTestSuite ? '隱藏測試' : '顯示測試'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <PerformanceMonitor name="IncotermCalculator" />
       
       {/* 測試組件 */}
@@ -353,9 +389,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
               <label className="text-sm text-gray-600 mb-2 block">商品管理</label>
               <ProductManager
                 products={inputs.products}
-                currency={inputs.currency}
                 onUpdate={updateProducts}
-                t={t}
               />
             </div>
 
@@ -584,23 +618,23 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
               
               {/* 費用顯示方式分頁標籤 */}
               <div className="flex items-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-1 shadow-sm">
-                <button 
+                                <button 
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    inputs.costViewMode === "total" 
+                    inputs.inputMode === "total" 
                       ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
                       : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
                   }`}
-                  onClick={() => update({ costViewMode: "total" })}
+                  onClick={() => update({ inputMode: "total" })}
                 >
                   {t.total}
                 </button>
                 <button 
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    inputs.costViewMode === "perUnit" 
+                    inputs.inputMode === "perUnit" 
                       ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
                       : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
-                  }`}
-                  onClick={() => update({ costViewMode: "perUnit" })}
+                }`}
+                  onClick={() => update({ inputMode: "perUnit" })}
                 >
                   {t.perUnit}
                 </button>
@@ -908,4 +942,3 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
   );
 };
 
-export default IncotermQuoteCalculatorOptimized;

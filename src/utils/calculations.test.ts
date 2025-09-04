@@ -2,56 +2,62 @@ import { calculateQuote, calculateDerivedValues } from './calculations';
 import { Product } from '../types';
 
 describe('calculateDerivedValues', () => {
-  it('should calculate derived values for single product', () => {
+  it('should calculate total quantity and value for perBox products', () => {
     const products: Product[] = [{
-      id: 'test-1',
-      name: '商品1',
-      inputMode: 'perBox',
-      boxPrice: 500,
+      id: "1",
+      name: "Product 1",
+      inputMode: "perBox",
+      boxPrice: 100,
       boxQuantity: 10,
       orderBoxes: 10,
-      volume: 0.1,
-      weight: 1.0
+      lengthM: 0.1,
+      widthM: 0.1,
+      heightM: 0.1,
+      weightKg: 1.0
     }];
 
     const result = calculateDerivedValues(products);
     
-    expect(result.qty).toBe(100); // 10 boxes * 10 units per box
-    expect(result.sumVal).toBe(50000); // 10 boxes * 500 per box
-    expect(result.totalVolume).toBe(10); // 10 boxes * 0.1 volume per box
-    expect(result.totalWeight).toBe(10); // 10 boxes * 1.0 weight per box
+    expect(result.qty).toBe(100); // 10 boxes * 10 items per box
+    expect(result.sumVal).toBe(1000); // 10 boxes * 100 price per box
+    expect(result.totalVolume).toBe(0.01); // 10 boxes * 0.1^3
+    expect(result.totalWeight).toBe(10); // 10 boxes * 1.0 kg
   });
 
-  it('should calculate derived values for multiple products', () => {
+  it('should calculate total quantity and value for mixed input modes', () => {
     const products: Product[] = [
       {
-        id: 'test-1',
-        name: '商品1',
-        inputMode: 'perBox',
-        boxPrice: 500,
+        id: "1",
+        name: "Product 1",
+        inputMode: "perBox",
+        boxPrice: 100,
         boxQuantity: 10,
         orderBoxes: 5,
-        volume: 0.1,
-        weight: 1.0
+        lengthM: 0.1,
+        widthM: 0.1,
+        heightM: 0.1,
+        weightKg: 1.0
       },
       {
-        id: 'test-2',
-        name: '商品2',
-        inputMode: 'perUnit',
-        unitPrice: 25,
+        id: "2",
+        name: "Product 2",
+        inputMode: "perUnit",
+        unitPrice: 5,
         totalQuantity: 200,
         boxQuantity: 20,
-        volume: 0.05,
-        weight: 0.5
+        lengthM: 0.05,
+        widthM: 0.05,
+        heightM: 0.05,
+        weightKg: 0.5
       }
     ];
 
     const result = calculateDerivedValues(products);
     
-    expect(result.qty).toBe(250); // 5*10 + 200
-    expect(result.sumVal).toBe(37500); // 5*500 + 200*25
-    expect(result.totalVolume).toBe(12.5); // 5*0.1 + 200*0.05
-    expect(result.totalWeight).toBe(105); // 5*1.0 + 200*0.5
+    expect(result.qty).toBe(250); // 50 + 200
+    expect(result.sumVal).toBe(1500); // 500 + 1000
+    expect(result.totalVolume).toBe(0.005 + 0.025); // 5 * 0.1^3 + 10 * 0.05^3
+    expect(result.totalWeight).toBe(5 + 5); // 5 * 1.0 + 10 * 0.5
   });
 });
 

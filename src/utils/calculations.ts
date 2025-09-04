@@ -259,8 +259,10 @@ export function calculateDerivedValues(products: Product[]) {
       ? (product.orderBoxes || 0) 
       : Math.ceil((product.totalQuantity || 0) / (product.boxQuantity || 1));
     
-    totalVolume += boxQty * (product.volume || 0);
-    totalWeight += boxQty * (product.weight || 0);
+    // 使用新的尺寸和重量屬性
+    const cbmPerBox = (product.lengthM || 0) * (product.widthM || 0) * (product.heightM || 0);
+    totalVolume += boxQty * cbmPerBox;
+    totalWeight += boxQty * (product.weightKg || 0);
   });
   
   return { qty, sumVal, totalVolume, totalWeight };
@@ -295,7 +297,9 @@ export function calculateCostAllocation(
     const boxQty = product.inputMode === 'perBox' 
       ? (product.orderBoxes || 0) 
       : Math.ceil((product.totalQuantity || 0) / (product.boxQuantity || 1));
-    const productVolume = boxQty * (product.volume || 0);
+    
+    // 使用新的尺寸屬性計算體積
+    const productVolume = boxQty * (product.lengthM || 0) * (product.widthM || 0) * (product.heightM || 0);
     
     switch (allocationMethod) {
       case 'quantity':
@@ -332,8 +336,9 @@ export function calculateCostAllocation(
       productId: product.id,
       fixedCostAllocation,
       logisticsCostAllocation,
-      totalAllocatedCosts: fixedCostAllocation + logisticsCostAllocation,
-      perUnitAllocatedCosts: productQty > 0 ? (fixedCostAllocation + logisticsCostAllocation) / productQty : 0
+      totalAllocation: fixedCostAllocation + logisticsCostAllocation,
+      allocationPerUnit: productQty > 0 ? 
+        (fixedCostAllocation + logisticsCostAllocation) / productQty : 0
     };
   });
 }
@@ -468,7 +473,7 @@ export function calculateProductQuote(
   
   // 單位成本 = 供應商單價 + 分攤的出口費用（不含貨值）
   // 修正：避免貨值重複計算
-  const unitCost = supplierUnitPrice + productAllocation.perUnitAllocatedCosts;
+  const unitCost = supplierUnitPrice + productAllocation.allocationPerUnit;
   
   // 計算建議報價
   let suggestedQuote = unitCost;

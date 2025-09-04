@@ -17,46 +17,53 @@ export const TestSuite: React.FC = () => {
   const [currentTest, setCurrentTest] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
 
-  // 基礎測試數據
-  const createBaseInputs = (): Inputs => ({
-    supplierTerm: "EXW" as Term,
-    targetTerm: "DDP" as Term,
-    products: [{
-      id: "test-product",
-      name: "測試商品",
-      inputMode: "perBox",
-      boxPrice: 50,
-      boxQuantity: 1,
-      orderBoxes: 100,
-      volume: 0.1,
-      weight: 1.0
-    }],
-    inlandToPort: { shipmentTotal: 90000, scaleWithQty: false },
-    exportDocsClearance: { shipmentTotal: 20000, scaleWithQty: false },
-    documentFees: { shipmentTotal: 5000, scaleWithQty: false },
-    numOfShipments: 1,
-    originPortFees: { shipmentTotal: 12000, scaleWithQty: false },
-    mainFreight: { shipmentTotal: 100000, scaleWithQty: false },
-    insuranceRatePct: 0.2,
-    destPortFees: { shipmentTotal: 8000, scaleWithQty: false },
-    importBroker: { shipmentTotal: 15000, scaleWithQty: false },
-    lastMileDelivery: { shipmentTotal: 12000, scaleWithQty: false },
-    dutyPct: 5,
-    vatPct: 10,
-    misc: { shipmentTotal: 3000, scaleWithQty: true },
-    bankFeePct: 1.5,
-    pricingMode: "markup" as const,
-    markupPct: 15,
-    marginPct: 13.06,
-    rounding: 1,
-    exportDocsMode: "byShipment" as ExportDocsMode,
-    exportCostInclusion: "include" as const,
-    allocationMethod: "quantity" as AllocationMethod,
-    includeBrokerInTaxBase: true,
+  // 測試數據
+  const testData: Inputs = {
     currency: "JPY",
     lang: "zh",
-    costViewMode: "total"
-  });
+    products: [{
+      id: "test-1",
+      name: "商品1",
+      inputMode: "perBox",
+      boxPrice: 500,
+      boxQuantity: 10,
+      orderBoxes: 100,
+      lengthM: 0.1,
+      widthM: 0.1,
+      heightM: 0.1,
+      weightKg: 1.0
+    }],
+    supplierTerm: "FOB",
+    targetTerm: "CIF",
+    inputMode: "total",
+    pricingMode: "markup",
+    markupPct: 15,
+    marginPct: 12,
+    bankFeePct: 0.6,
+    rounding: 1,
+    exportCostInclusion: "include",
+    allocationMethod: "hybrid",
+    shippingConfig: {
+      mode: "air",
+      volumetricDivisor: 6000,
+      userOverride: undefined
+    },
+    exportDocsClearance: { shipmentTotal: 20000, scaleWithQty: false },
+    documentFees: { shipmentTotal: 5000, scaleWithQty: false },
+    inlandToPort: { shipmentTotal: 90000, scaleWithQty: false },
+    originPortFees: { shipmentTotal: 8000, scaleWithQty: false },
+    mainFreight: { shipmentTotal: 100000, scaleWithQty: false },
+    insuranceRatePct: 0.2,
+    destPortFees: { shipmentTotal: 0, scaleWithQty: false },
+    importBroker: { shipmentTotal: 0, scaleWithQty: false },
+    lastMileDelivery: { shipmentTotal: 0, scaleWithQty: false },
+    dutyPct: 0,
+    vatPct: 0,
+    misc: { shipmentTotal: 0, scaleWithQty: false },
+    includeBrokerInTaxBase: false,
+    exportDocsMode: "byShipment",
+    numOfShipments: 1,
+  };
 
   // 執行單個測試
   const runTest = (testId: string, testFn: () => TestResult): TestResult => {
@@ -82,7 +89,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試1: 固定拖車費不飄
     const test1 = runTest('A1', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 測試數量變化對固定費用的影響
       const testInputs1 = {
@@ -121,7 +128,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試2: 固定港雜費不飄
     const test2 = runTest('A2', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       const costPerUnit1 = inputs.originPortFees.shipmentTotal / 50;  // 12,000 / 50
       const costPerUnit2 = inputs.originPortFees.shipmentTotal / 500; // 12,000 / 500
@@ -142,7 +149,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試3: 固定文件費不飄
     const test3 = runTest('A3', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       const costPerUnit1 = inputs.documentFees.shipmentTotal / 100; // 5,000 / 100
       const costPerUnit2 = inputs.documentFees.shipmentTotal / 1;   // 5,000 / 1
@@ -170,7 +177,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試4: byShipment模式
     const test4 = runTest('B4', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       const expectedTotal = 20000;
       const expectedPerUnit = 200; // 20,000 / 100
@@ -191,7 +198,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試5: byCustomsEntries模式
     const test5 = runTest('B5', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬 byCustomsEntries 模式
       const testInputs = {
@@ -226,7 +233,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試7: 檢驗費按件收
     const test7 = runTest('C7', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 測試 scaleWithQty=true 的費用
       const costPerUnit1 = inputs.misc.shipmentTotal / 100; // 300 / 100
@@ -255,7 +262,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試9: 標準CIF保險
     const test9 = runTest('D9', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 計算預期保險費
       const goodsValue = 5000; // 商品價值
@@ -286,7 +293,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試11: 單位成本/報價對齊
     const test11 = runTest('E11', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 驗證定價模式設置
       const hasCorrectPricing = inputs.pricingMode === "markup" && 
@@ -311,7 +318,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試13: 數量法分攤
     const test13 = runTest('F13', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 驗證分攤方法設置
       const hasCorrectAllocation = inputs.allocationMethod === "quantity";
@@ -328,7 +335,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試14: 體積法分攤
     const test14 = runTest('F14', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬體積法分攤
       const testInputs = {
@@ -350,7 +357,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試15: 混合分攤法
     const test15 = runTest('F15', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬混合分攤法
       const testInputs = {
@@ -372,7 +379,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試16: 價值法分攤
     const test16 = runTest('F16', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬價值法分攤
       const testInputs = {
@@ -401,7 +408,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試17: 顯示模式切換不影響計算
     const test17 = runTest('G17', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬模式切換：total ↔ perUnit
       const totalModeInputs = {
@@ -430,7 +437,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試18: 四捨五入位數
     const test18 = runTest('G18', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 驗證四捨五入設置
       const hasCorrectRounding = inputs.rounding === 1;
@@ -447,7 +454,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試19: 幣別切換
     const test19 = runTest('G19', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 驗證幣別設置
       const hasCorrectCurrency = inputs.currency === "JPY";
@@ -471,7 +478,7 @@ export const TestSuite: React.FC = () => {
     
     // 測試20: qty=0 處理
     const test20 = runTest('H20', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬數量為0的情況
       const zeroQtyInputs = {
@@ -496,7 +503,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試21: numOfShipments=0 處理
     const test21 = runTest('H21', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬票數為0的情況
       const zeroShipmentsInputs = {
@@ -518,7 +525,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試22: 缺省費用=空或null
     const test22 = runTest('H22', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬缺省費用為0的情況
       const zeroFeesInputs = {
@@ -540,7 +547,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試23: 極大數量/極小費率
     const test23 = runTest('H23', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬極大數量和極小費率
       const extremeInputs = {
@@ -567,7 +574,7 @@ export const TestSuite: React.FC = () => {
 
     // 測試24: scaleWithQty=true 但在 total 模式輸入
     const test24 = runTest('H24', () => {
-      const inputs = createBaseInputs();
+      const inputs = testData;
       
       // 模擬 scaleWithQty=true 但在 total 模式
       const totalModeInputs = {

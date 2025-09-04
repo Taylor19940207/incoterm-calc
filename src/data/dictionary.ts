@@ -38,7 +38,7 @@ export const dict: Record<Lang, any> = {
     targetTerm: "報價條件",
     
     // 輸入模式
-    inputMode: "輸入模式",
+    costViewMode: "費用顯示方式",
     total: "整票總額",
     
     // 定價模式
@@ -60,8 +60,9 @@ export const dict: Record<Lang, any> = {
     allocationHint: "混合分攤：固定費用按貨值，物流費用按體積",
     
     // 成本參數
-    costParamsUnit: "成本參數（每單位）",
-    costParamsTotal: "成本參數（整票總額）",
+      costParams: "成本參數",
+  costParamsUnit: "成本參數（每單位）",
+  costParamsTotal: "成本參數（整票總額）",
     exportDocsClearance: "報關費",
     documentFees: "文件費",
     inlandToPort: "拖車費",
@@ -219,7 +220,7 @@ export const dict: Record<Lang, any> = {
     targetTerm: "見積条件",
     
     // 輸入模式
-    inputMode: "入力モード",
+    costViewMode: "費用表示方式",
     total: "総額",
     
     // 定價模式
@@ -241,8 +242,9 @@ export const dict: Record<Lang, any> = {
     allocationHint: "ハイブリッド配分：固定費用は価値比例、物流費用は容積比例",
     
     // 成本參數
-    costParamsUnit: "コストパラメータ（単位当たり）",
-    costParamsTotal: "コストパラメータ（総額）",
+      costParams: "コストパラメータ",
+  costParamsUnit: "コストパラメータ（単位当たり）",
+  costParamsTotal: "コストパラメータ（総額）",
     exportDocsClearance: "通関手数料",
     documentFees: "書類手数料",
     inlandToPort: "トラック料金",

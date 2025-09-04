@@ -35,8 +35,8 @@ const defaultInputs: Inputs = {
   supplierTerm: "FOB",
   targetTerm: "CIF",
   
-  // 輸入模式 - 改為預設整票總額
-  inputMode: "total",
+  // 費用顯示方式 - 預設整票總額
+  costViewMode: "total",
   
   // 定價設置
   pricingMode: "markup",
@@ -169,7 +169,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       }
       
       // 一般 CostItem 欄位
-      if (inputs.inputMode === "total") {
+      if (inputs.costViewMode === "total") {
         // 整票模式：顯示整票金額
         return String(costItem.shipmentTotal);
       } else {
@@ -191,7 +191,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
         return String(per * Math.max(0, inputs.numOfShipments || 0));
       }
       
-      if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
+      if (inputs.costViewMode === "total" && perUnitFields.has(name as string)) {
         return String(value * derived.qty);
       }
       return String(value);
@@ -215,7 +215,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
       return;
     }
     
-    if (inputs.inputMode === "total" && perUnitFields.has(name as string)) {
+    if (inputs.costViewMode === "total" && perUnitFields.has(name as string)) {
       const perUnit = derived.qty > 0 ? value / derived.qty : 0;
       update({ [name]: perUnit });
       return;
@@ -384,24 +384,7 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
               </div>
             </div>
 
-            {/* 輸入模式 */}
-            <div className="mt-3 flex items-center gap-3">
-              <span className="text-sm text-gray-600">{t.inputMode}：</span>
-              <div className="flex items-center gap-2">
-                <button 
-                  className={`rounded-full px-3 py-1 text-sm border ${inputs.inputMode === "perUnit" ? "bg-gray-900 text-white" : "bg-white"}`} 
-                  onClick={() => update({ inputMode: "perUnit" })}
-                >
-                  {t.perUnit}
-                </button>
-                <button 
-                  className={`rounded-full px-3 py-1 text-sm border ${inputs.inputMode === "total" ? "bg-gray-900 text-white" : "bg-white"}`} 
-                  onClick={() => update({ inputMode: "total" })}
-                >
-                  {t.total}
-                </button>
-              </div>
-            </div>
+
 
             {/* 第一層：報價模式 */}
             <div className="mt-4">
@@ -591,12 +574,38 @@ const IncotermQuoteCalculatorOptimized: React.FC = () => {
 
           {/* 成本明細輸入 */}
           <section className="lg:col-span-2 rounded-2xl bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold">
-              {inputs.inputMode === "perUnit" ? t.costParamsUnit : t.costParamsTotal}
-            </h2>
-            <p className="mb-4 text-sm text-gray-600">
-              {t.hintPath(inputs.supplierTerm, inputs.targetTerm)}
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">{t.costParams}</h2>
+                <p className="text-sm text-gray-600">
+                  {t.hintPath(inputs.supplierTerm, inputs.targetTerm)}
+                </p>
+              </div>
+              
+              {/* 費用顯示方式分頁標籤 */}
+              <div className="flex items-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-1 shadow-sm">
+                <button 
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    inputs.costViewMode === "total" 
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
+                      : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
+                  }`}
+                  onClick={() => update({ costViewMode: "total" })}
+                >
+                  {t.total}
+                </button>
+                <button 
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    inputs.costViewMode === "perUnit" 
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
+                      : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
+                  }`}
+                  onClick={() => update({ costViewMode: "perUnit" })}
+                >
+                  {t.perUnit}
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <InputField

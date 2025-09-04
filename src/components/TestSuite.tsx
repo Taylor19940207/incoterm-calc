@@ -55,7 +55,7 @@ export const TestSuite: React.FC = () => {
     includeBrokerInTaxBase: true,
     currency: "JPY",
     lang: "zh",
-    inputMode: "total"
+    costViewMode: "total"
   });
 
   // 執行單個測試
@@ -406,24 +406,24 @@ export const TestSuite: React.FC = () => {
       // 模擬模式切換：total ↔ perUnit
       const totalModeInputs = {
         ...inputs,
-        inputMode: "total" as const
+        costViewMode: "total" as const
       };
       
       const perUnitModeInputs = {
         ...inputs,
-        inputMode: "perUnit" as const
+        costViewMode: "perUnit" as const
       };
       
       // 驗證模式切換
-      const hasModeSwitch = totalModeInputs.inputMode === "total" && 
-                           perUnitModeInputs.inputMode === "perUnit";
+      const hasModeSwitch = totalModeInputs.costViewMode === "total" && 
+                           perUnitModeInputs.costViewMode === "perUnit";
       
       return {
         testId: 'G17',
         name: '顯示模式切換不影響計算',
         status: hasModeSwitch ? 'pass' : 'fail',
         expected: `total模式: total, perUnit模式: perUnit`,
-        actual: `total模式: ${totalModeInputs.inputMode}, perUnit模式: ${perUnitModeInputs.inputMode}`
+        actual: `total模式: ${totalModeInputs.costViewMode}, perUnit模式: ${perUnitModeInputs.costViewMode}`
       };
     });
     results.push(test17);
@@ -572,11 +572,11 @@ export const TestSuite: React.FC = () => {
       // 模擬 scaleWithQty=true 但在 total 模式
       const totalModeInputs = {
         ...inputs,
-        inputMode: "total" as const,
+        costViewMode: "total" as const,
         misc: { shipmentTotal: 600, scaleWithQty: true }
       };
       
-      const hasCorrectMode = totalModeInputs.inputMode === "total" && 
+      const hasCorrectMode = totalModeInputs.costViewMode === "total" && 
                             totalModeInputs.misc.scaleWithQty === true;
       
       return {
@@ -584,7 +584,7 @@ export const TestSuite: React.FC = () => {
         name: 'scaleWithQty=true 但在 total 模式輸入',
         status: hasCorrectMode ? 'pass' : 'fail',
         expected: `模式: total, scaleWithQty: true`,
-        actual: `模式: ${totalModeInputs.inputMode}, scaleWithQty: ${totalModeInputs.misc.scaleWithQty}`
+        actual: `模式: ${totalModeInputs.costViewMode}, scaleWithQty: ${totalModeInputs.misc.scaleWithQty}`
       };
     });
     results.push(test24);

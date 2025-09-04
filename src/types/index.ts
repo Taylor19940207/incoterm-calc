@@ -50,8 +50,8 @@ export interface Inputs {
   supplierTerm: Term;
   targetTerm: Term;
   
-  // 輸入模式
-  inputMode: "total" | "perUnit";
+  // 費用顯示方式
+  costViewMode: "total" | "perUnit";
   
   // 定價設置
   pricingMode: "markup" | "margin";

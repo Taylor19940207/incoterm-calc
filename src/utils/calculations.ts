@@ -1,4 +1,5 @@
 import { Inputs, Product, AllocationMethod, Term, CostItem, ExportDocsMode } from '../types';
+import { normalizeCosts } from './normalize';
 
 const STEP_ORDER: Term[] = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
 
@@ -345,35 +346,69 @@ export function calculateCostAllocation(
 
 // 計算成本明細（使用統一的 calculateQuote 函數）
 export function calculateCostBreakdown(inputs: Inputs) {
-  const { products = [] } = inputs;
+  // 保險型取值：確保所有屬性都有預設值
+  const safeInputs = {
+    ...inputs,
+    // 基本屬性
+    lang: inputs.lang || "zh",
+    currency: inputs.currency || "JPY",
+    supplierTerm: inputs.supplierTerm || "FOB",
+    targetTerm: inputs.targetTerm || "CIF",
+    inputMode: inputs.inputMode || "total",
+    pricingMode: inputs.pricingMode || "markup",
+    markupPct: inputs.markupPct || 15,
+    marginPct: inputs.marginPct || 12,
+    bankFeePct: inputs.bankFeePct || 0.6,
+    rounding: inputs.rounding || 1,
+    exportCostInclusion: inputs.exportCostInclusion || "include",
+    allocationMethod: inputs.allocationMethod || "hybrid",
+    insuranceRatePct: inputs.insuranceRatePct || 0.2,
+    dutyPct: inputs.dutyPct || 0,
+    vatPct: inputs.vatPct || 0,
+    includeBrokerInTaxBase: inputs.includeBrokerInTaxBase || false,
+    exportDocsMode: inputs.exportDocsMode || "byShipment",
+    numOfShipments: inputs.numOfShipments || 1,
+    // 成本項目
+    inlandToPort: inputs.inlandToPort || { shipmentTotal: 0, scaleWithQty: false },
+    exportDocsClearance: inputs.exportDocsClearance || { shipmentTotal: 0, scaleWithQty: false },
+    documentFees: inputs.documentFees || { shipmentTotal: 0, scaleWithQty: false },
+    originPortFees: inputs.originPortFees || { shipmentTotal: 0, scaleWithQty: false },
+    mainFreight: inputs.mainFreight || { shipmentTotal: 0, scaleWithQty: false },
+    destPortFees: inputs.destPortFees || { shipmentTotal: 0, scaleWithQty: false },
+    importBroker: inputs.importBroker || { shipmentTotal: 0, scaleWithQty: false },
+    lastMileDelivery: inputs.lastMileDelivery || { shipmentTotal: 0, scaleWithQty: false },
+    misc: inputs.misc || { shipmentTotal: 0, scaleWithQty: false },
+  };
+  
+  const { products = [] } = safeInputs;
   const derived = calculateDerivedValues(products);
   
   // 使用統一的 calculateQuote 函數計算所有費用
   const quoteResult = calculateQuote({
-    supplierTerm: inputs.supplierTerm,
-    targetTerm: inputs.targetTerm,
+    supplierTerm: safeInputs.supplierTerm,
+    targetTerm: safeInputs.targetTerm,
     qty: derived.qty,
     unitPrice: derived.sumVal / derived.qty,
-    inlandToPort: inputs.inlandToPort.shipmentTotal,
-    exportDocsClearance: inputs.exportDocsClearance.shipmentTotal,
-    documentFees: inputs.documentFees.shipmentTotal,  // 新增：文件費
-    numOfShipments: inputs.numOfShipments,
-    originPortFees: inputs.originPortFees.shipmentTotal,
-    mainFreight: inputs.mainFreight.shipmentTotal,
-    insuranceRatePct: inputs.insuranceRatePct,
-    destPortFees: inputs.destPortFees.shipmentTotal,
-    importBroker: inputs.importBroker.shipmentTotal,
-    lastMileDelivery: inputs.lastMileDelivery.shipmentTotal,
-    dutyPct: inputs.dutyPct,
-    vatPct: inputs.vatPct,
-    miscPerUnit: inputs.misc.shipmentTotal,
-    bankFeePct: inputs.bankFeePct,
-    pricingMode: inputs.pricingMode,
-    markupPct: inputs.markupPct,
-    marginPct: inputs.marginPct,
-    rounding: inputs.rounding,
-    exportDocsMode: inputs.exportDocsMode,
-    exportCostInclusion: inputs.exportCostInclusion,
+    inlandToPort: safeInputs.inlandToPort.shipmentTotal,
+    exportDocsClearance: safeInputs.exportDocsClearance.shipmentTotal,
+    documentFees: safeInputs.documentFees.shipmentTotal,  // 新增：文件費
+    numOfShipments: safeInputs.numOfShipments,
+    originPortFees: safeInputs.originPortFees.shipmentTotal,
+    mainFreight: safeInputs.mainFreight.shipmentTotal,
+    insuranceRatePct: safeInputs.insuranceRatePct,
+    destPortFees: safeInputs.destPortFees.shipmentTotal,
+    importBroker: safeInputs.importBroker.shipmentTotal,
+    lastMileDelivery: safeInputs.lastMileDelivery.shipmentTotal,
+    dutyPct: safeInputs.dutyPct,
+    vatPct: safeInputs.vatPct || 0,
+    miscPerUnit: safeInputs.misc.shipmentTotal,
+    bankFeePct: safeInputs.bankFeePct,
+    pricingMode: safeInputs.pricingMode,
+    markupPct: safeInputs.markupPct,
+    marginPct: safeInputs.marginPct,
+    rounding: safeInputs.rounding,
+    exportDocsMode: safeInputs.exportDocsMode,
+    exportCostInclusion: safeInputs.exportCostInclusion,
     allocationMethod: inputs.allocationMethod,
     includeBrokerInTaxBase: inputs.includeBrokerInTaxBase,
   });
@@ -506,9 +541,43 @@ export function calculateProductQuote(
 
 // 計算所有商品報價
 export function calculateAllProductQuotes(inputs: Inputs) {
-  const costBreakdown = calculateCostBreakdown(inputs);
-  const products = inputs.products.map(product => 
-    calculateProductQuote(product, inputs)
+  // 保險型取值：確保所有屬性都有預設值
+  const safeInputs = {
+    ...inputs,
+    // 基本屬性
+    lang: inputs.lang || "zh",
+    currency: inputs.currency || "JPY",
+    supplierTerm: inputs.supplierTerm || "FOB",
+    targetTerm: inputs.targetTerm || "CIF",
+    inputMode: inputs.inputMode || "total",
+    pricingMode: inputs.pricingMode || "markup",
+    markupPct: inputs.markupPct || 15,
+    marginPct: inputs.marginPct || 12,
+    bankFeePct: inputs.bankFeePct || 0.6,
+    rounding: inputs.rounding || 1,
+    exportCostInclusion: inputs.exportCostInclusion || "include",
+    allocationMethod: inputs.allocationMethod || "hybrid",
+    insuranceRatePct: inputs.insuranceRatePct || 0.2,
+    dutyPct: inputs.dutyPct || 0,
+    vatPct: inputs.vatPct || 0,
+    includeBrokerInTaxBase: inputs.includeBrokerInTaxBase || false,
+    exportDocsMode: inputs.exportDocsMode || "byShipment",
+    numOfShipments: inputs.numOfShipments || 1,
+    // 成本項目
+    inlandToPort: inputs.inlandToPort || { shipmentTotal: 0, scaleWithQty: false },
+    exportDocsClearance: inputs.exportDocsClearance || { shipmentTotal: 0, scaleWithQty: false },
+    documentFees: inputs.documentFees || { shipmentTotal: 0, scaleWithQty: false },
+    originPortFees: inputs.originPortFees || { shipmentTotal: 0, scaleWithQty: false },
+    mainFreight: inputs.mainFreight || { shipmentTotal: 0, scaleWithQty: false },
+    destPortFees: inputs.destPortFees || { shipmentTotal: 0, scaleWithQty: false },
+    importBroker: inputs.importBroker || { shipmentTotal: 0, scaleWithQty: false },
+    lastMileDelivery: inputs.lastMileDelivery || { shipmentTotal: 0, scaleWithQty: false },
+    misc: inputs.misc || { shipmentTotal: 0, scaleWithQty: false },
+  };
+  
+  const costBreakdown = calculateCostBreakdown(safeInputs);
+  const products = safeInputs.products.map(product => 
+    calculateProductQuote(product, safeInputs)
   );
   
   return {

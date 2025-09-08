@@ -3,6 +3,7 @@ import { Inputs, Product, Term } from './types';
 import { calculateQuote, calculateDerivedValues, calculateAllProductQuotes } from './utils/calculations';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { dict } from './data/dictionary';
+import { DataManager } from './utils/dataMigration';
 import InputField from './components/InputField';
 import ProductManager from './components/ProductManager';
 import ProductQuotes from './components/ProductQuotes';
@@ -85,10 +86,17 @@ const perUnitFields = new Set([
 ]);
 
 export default function AppOptimized() {
-  const [inputs, setInputs] = useLocalStorage<Inputs>("incoterm-inputs", defaultInputs);
+  // 使用 DataManager 來處理數據遷移
+  const [rawInputs, setRawInputs] = useState<Inputs>(() => 
+    DataManager.load<Inputs>("incoterm-inputs", defaultInputs)
+  );
   const [showTestSuite, setShowTestSuite] = useState(false);
   const [showNewFeatures, setShowNewFeatures] = useState(false);
-  const t = dict[inputs.lang];
+  
+  // 直接使用 rawInputs，因為 DataManager 已經處理了遷移
+  const inputs = rawInputs;
+  
+  const t = dict[inputs.lang] || dict.zh;
 
   // 計算衍生值
   const derived = useMemo(() => 
@@ -103,19 +111,19 @@ export default function AppOptimized() {
       targetTerm: inputs.targetTerm,
       qty: derived.qty,
       unitPrice: derived.sumVal / derived.qty,
-      inlandToPort: inputs.inlandToPort.shipmentTotal,
-      exportDocsClearance: inputs.exportDocsClearance.shipmentTotal,
-      documentFees: inputs.documentFees.shipmentTotal,  // 新增：文件費
+      inlandToPort: inputs.inlandToPort?.shipmentTotal || 0,
+      exportDocsClearance: inputs.exportDocsClearance?.shipmentTotal || 0,
+      documentFees: inputs.documentFees?.shipmentTotal || 0,  // 新增：文件費
       numOfShipments: inputs.numOfShipments,
-      originPortFees: inputs.originPortFees.shipmentTotal,
-      mainFreight: inputs.mainFreight.shipmentTotal,
+      originPortFees: inputs.originPortFees?.shipmentTotal || 0,
+      mainFreight: inputs.mainFreight?.shipmentTotal || 0,
       insuranceRatePct: inputs.insuranceRatePct,
-      destPortFees: inputs.destPortFees.shipmentTotal,
-      importBroker: inputs.importBroker.shipmentTotal,
-      lastMileDelivery: inputs.lastMileDelivery.shipmentTotal,
+      destPortFees: inputs.destPortFees?.shipmentTotal || 0,
+      importBroker: inputs.importBroker?.shipmentTotal || 0,
+      lastMileDelivery: inputs.lastMileDelivery?.shipmentTotal || 0,
       dutyPct: inputs.dutyPct,
       vatPct: inputs.vatPct,
-      miscPerUnit: inputs.misc.shipmentTotal,
+      miscPerUnit: inputs.misc?.shipmentTotal || 0,
       bankFeePct: inputs.bankFeePct,
       pricingMode: inputs.pricingMode,
       markupPct: inputs.markupPct,
@@ -135,6 +143,7 @@ export default function AppOptimized() {
     [inputs]
   );
 
+
   // 計算毛利率
   const profitMargin = useMemo(() => {
     const product = productQuotes.products[0];
@@ -153,8 +162,12 @@ export default function AppOptimized() {
 
   // 更新函數
   const update = useCallback((patch: Partial<Inputs>) => {
-    setInputs(prev => ({ ...prev, ...patch }));
-  }, [setInputs]);
+    setRawInputs(prev => {
+      const updated = { ...prev, ...patch };
+      DataManager.save("incoterm-inputs", updated);
+      return updated;
+    });
+  }, []);
 
   // 更新商品列表
   const updateProducts = useCallback((products: Product[]) => {
@@ -168,26 +181,27 @@ export default function AppOptimized() {
     // 處理 CostItem 結構
     if (typeof value === 'object' && value !== null && 'shipmentTotal' in (value as any)) {
       const costItem = value as any;
+      const shipmentTotal = costItem?.shipmentTotal || 0;
       
       // 報關費特殊處理
       if (name === "exportDocsClearance" && inputs.exportDocsMode === "byShipment") {
-        return String(costItem.shipmentTotal);
+        return String(shipmentTotal);
       }
       if (name === "exportDocsClearance" && inputs.exportDocsMode === "byCustomsEntries") {
-        const per = costItem.shipmentTotal;
+        const per = shipmentTotal;
         return String(per * Math.max(0, inputs.numOfShipments || 0));
       }
       
       // 一般 CostItem 欄位
       if (inputs.inputMode === "total") {
         // 整票模式：顯示整票金額
-        return String(costItem.shipmentTotal);
+        return String(shipmentTotal);
       } else {
         // 每單位模式：顯示每單位金額
         if (perUnitFields.has(name as string)) {
-          return String(derived.qty > 0 ? costItem.shipmentTotal / derived.qty : 0);
+          return String(derived.qty > 0 ? shipmentTotal / derived.qty : 0);
         }
-        return String(costItem.shipmentTotal);
+        return String(shipmentTotal);
       }
     }
     
@@ -242,9 +256,10 @@ export default function AppOptimized() {
   // 重置
   const handleReset = useCallback(() => {
     if (window.confirm('確定要重置所有數據嗎？')) {
-      setInputs(defaultInputs);
+      setRawInputs(defaultInputs);
+      DataManager.save("incoterm-inputs", defaultInputs);
     }
-  }, [setInputs]);
+  }, []);
 
   // 責任對照
   const ownerForResp = useCallback((rkey: string): "factory" | "exporter" | "importer" => {
@@ -294,22 +309,61 @@ export default function AppOptimized() {
     <div className="min-h-screen w-full bg-gray-50 text-gray-900">
       {/* 頂部導航欄 */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl xl:max-w-8xl 2xl:max-w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
           <div className="flex items-center justify-between h-16">
-            <h1 className="text-xl font-bold text-gray-900">Incoterm 計算器</h1>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowNewFeatures(true)}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                查看新功能
-              </button>
-              <button
-                onClick={() => setShowTestSuite(!showTestSuite)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                {showTestSuite ? '隱藏測試' : '顯示測試'}
-              </button>
+            <div className="flex items-center gap-8">
+              <h1 className="text-2xl font-bold text-gray-900">Incoterm 計算器</h1>
+              <div className="hidden xl:flex items-center gap-6 text-sm text-gray-600">
+                <span>專業貿易報價系統</span>
+                <span>•</span>
+                <span>支援多種貿易條件</span>
+                <span>•</span>
+                <span>智能成本分攤</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* 語言選擇器 */}
+              <div className="flex items-center gap-2 text-sm mr-6">
+                <span className="text-gray-500">{t.langLabel}：</span>
+                <button 
+                  className={`rounded-full px-3 py-1 border ${inputs.lang === "zh" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                  onClick={() => update({ lang: "zh" })}
+                >
+                  {t.zh}
+                </button>
+                <button 
+                  className={`rounded-full px-3 py-1 border ${inputs.lang === "ja" ? "bg-gray-900 text-white" : "bg-white"}`} 
+                  onClick={() => update({ lang: "ja" })}
+                >
+                  {t.ja}
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowNewFeatures(true)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  查看新功能
+                </button>
+                <button
+                  onClick={() => setShowTestSuite(!showTestSuite)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    showTestSuite 
+                      ? 'bg-red-600 text-white hover:bg-red-700' 
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  {showTestSuite ? '🧪 隱藏測試' : '🧪 顯示測試'}
+                </button>
+                <button 
+                  className="rounded-2xl border px-3 py-2 text-sm hover:bg-white" 
+                  onClick={handleReset}
+                >
+                  {t.reset}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -320,54 +374,14 @@ export default function AppOptimized() {
       {/* 測試組件 */}
       {showTestSuite && <TestSuite />}
       
-      <div className="mx-auto max-w-6xl p-4 md:p-8">
-        <header className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{t.title}</h1>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">{t.langLabel}：</span>
-              <button 
-                className={`rounded-full px-3 py-1 border ${inputs.lang === "zh" ? "bg-gray-900 text-white" : "bg-white"}`} 
-                onClick={() => update({ lang: "zh" })}
-              >
-                {t.zh}
-              </button>
-              <button 
-                className={`rounded-full px-3 py-1 border ${inputs.lang === "ja" ? "bg-gray-900 text-white" : "bg-white"}`} 
-                onClick={() => update({ lang: "ja" })}
-              >
-                {t.ja}
-              </button>
-            </div>
-          </div>
-          
-          {/* 測試組件切換按鈕 */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowTestSuite(!showTestSuite)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                showTestSuite 
-                  ? 'bg-red-600 text-white hover:bg-red-700' 
-                  : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
-            >
-              {showTestSuite ? '🧪 隱藏測試' : '🧪 顯示測試'}
-            </button>
-          </div>
-          
-          <button 
-            className="rounded-2xl border px-3 py-2 text-sm hover:bg-white" 
-            onClick={handleReset}
-          >
-            {t.reset}
-          </button>
-        </header>
+      <div className="mx-auto max-w-7xl xl:max-w-8xl 2xl:max-w-full p-4 md:p-8">
+
 
 
         
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 xl:grid-cols-4 2xl:grid-cols-5">
           {/* 基本參數 */}
-          <section className="lg:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
+          <section className="xl:col-span-1 2xl:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">基本參數</h2>
 
             {/* 貨幣選擇 */}
@@ -591,7 +605,7 @@ export default function AppOptimized() {
 
             {/* 四捨五入設置 */}
             <div className="mt-4">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">以
                 <label className="text-sm text-gray-600">{t.rounding}</label>
                 <select
                   className="w-full rounded-2xl border px-3 py-2"
@@ -607,7 +621,7 @@ export default function AppOptimized() {
           </section>
 
           {/* 成本明細輸入 */}
-          <section className="lg:col-span-2 rounded-2xl bg-white p-4 shadow-sm">
+          <section className="xl:col-span-3 2xl:col-span-4 rounded-2xl bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold">{t.costParams}</h2>
@@ -641,7 +655,7 @@ export default function AppOptimized() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-5">
               <InputField
                 name="inlandToPort"
                 label={t.inlandToPort}
@@ -807,13 +821,13 @@ export default function AppOptimized() {
                   return (
                     <tr key={r.key} className="border-b">
                       <td className="px-3 py-2">{r.label}</td>
-                      <td className={`px-3 py-2 ${owner === "factory" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                      <td className={`px-3 py-2 text-center ${owner === "factory" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
                         {owner === "factory" ? "✓" : ""}
                       </td>
-                      <td className={`px-3 py-2 ${owner === "exporter" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                      <td className={`px-3 py-2 text-center ${owner === "exporter" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
                         {owner === "exporter" ? "✓" : ""}
                       </td>
-                      <td className={`px-3 py-2 ${owner === "importer" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
+                      <td className={`px-3 py-2 text-center ${owner === "importer" ? "text-green-700 font-semibold" : "text-gray-400"}`}>
                         {owner === "importer" ? "✓" : ""}
                       </td>
                     </tr>
@@ -828,7 +842,7 @@ export default function AppOptimized() {
         <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">{t.results}</h2>
           
-          <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-6 xl:grid-cols-4 2xl:grid-cols-6">
             <div className="text-center">
               <div className="text-sm text-gray-500">{t.unitQuote}</div>
               <div className="text-2xl font-bold">{labelCurrency(productQuotes.products[0]?.suggestedQuote || 0)}</div>

@@ -1,11 +1,56 @@
 import React, { useMemo, useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { SheetClose } from "./ui/sheet";
-import { Product, ProductInputMode } from "../types";
+import { Product } from "../types";
+
+// helper to coerce any numeric-ish value to a non-negative number
+const toNum = (v: unknown, fallback = 0) => {
+  if (v === "" || v === null || v === undefined) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+
+// when switching mode we want mutually exclusive fields cleared
+function normalizeProduct(p: Product): Product {
+  const base: Product = {
+    ...p,
+    inputMode: (p as any).inputMode ?? ("perBox" as const),
+    boxPrice: toNum((p as any).boxPrice),
+    boxQuantity: toNum((p as any).boxQuantity, 1),
+    orderBoxes: toNum((p as any).orderBoxes),
+    unitPrice: toNum((p as any).unitPrice),
+    totalQuantity: toNum((p as any).totalQuantity),
+    lengthM: toNum((p as any).lengthM),
+    widthM: toNum((p as any).widthM),
+    heightM: toNum((p as any).heightM),
+    weightKg: toNum((p as any).weightKg),
+  } as Product;
+
+  // harden numeric fields so calculators never see undefined/NaN
+  base.boxQuantity = Math.max(1, toNum(base.boxQuantity, 1));
+  base.boxPrice = toNum(base.boxPrice, 0);
+  base.orderBoxes = Math.max(0, toNum(base.orderBoxes, 0));
+  base.unitPrice = toNum(base.unitPrice, 0);
+  base.totalQuantity = Math.max(0, toNum(base.totalQuantity, 0));
+  base.lengthM = toNum(base.lengthM, 0);
+  base.widthM = toNum(base.widthM, 0);
+  base.heightM = toNum(base.heightM, 0);
+  base.weightKg = toNum(base.weightKg, 0);
+
+  // clear mutually exclusive fields
+  if (base.inputMode === "perBox") {
+    base.unitPrice = 0;
+    base.totalQuantity = 0;
+  } else {
+    base.boxPrice = 0;
+    base.boxQuantity = Math.max(1, base.boxQuantity || 1);
+    base.orderBoxes = 0;
+  }
+  return base;
+}
 
 interface ProductEditorProps {
   initial: Product;
@@ -13,48 +58,98 @@ interface ProductEditorProps {
 }
 
 export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
-  const [draft, setDraft] = useState<Product>({ ...initial });
+  const [draft, setDraft] = useState<Product>(() => normalizeProduct(initial));
 
-  // 即時計算體積
-  const cbm = useMemo(
-    () => draft.lengthM * draft.widthM * draft.heightM,
-    [draft.lengthM, draft.widthM, draft.heightM]
-  );
+  // keep in sync if the incoming initial changes (e.g., editing another product)
+  React.useEffect(() => {
+    setDraft(normalizeProduct(initial));
+  }, [initial]);
 
-  // 即時計算體積重（空運係數6000）
+  // 即時計算體積 (m^3)
+  const cbm = useMemo(() => {
+    const L = Math.max(0, toNum((draft as any).lengthM));
+    const W = Math.max(0, toNum((draft as any).widthM));
+    const H = Math.max(0, toNum((draft as any).heightM));
+    const v = L * W * H;
+    return Number.isFinite(v) && v > 0 ? Number(v.toFixed(6)) : 0;
+  }, [draft]);
+
+  // 即時計算體積重（空運係數6000： cm^3 / 6000）
   const volumetricWeight = useMemo(() => {
-    const volumeCm3 = cbm * 1000000; // 轉換為 cm³
-    return volumeCm3 / 6000; // 空運係數
+    const volumeCm3 = cbm * 1_000_000; // m^3 -> cm^3
+    const vw = volumeCm3 > 0 ? volumeCm3 / 6000 : 0;
+    return Number.isFinite(vw) && vw > 0 ? Number(vw.toFixed(4)) : 0;
   }, [cbm]);
 
   // 計費重量（取實際重量和體積重的較大值）
   const chargeableWeight = useMemo(() => {
-    return Math.max(draft.weightKg || 0, volumetricWeight);
+    const w = Math.max(0, toNum(draft.weightKg));
+    const cw = Math.max(w, volumetricWeight);
+    return Number.isFinite(cw) ? cw : 0;
   }, [draft.weightKg, volumetricWeight]);
 
   function set<K extends keyof Product>(k: K, v: Product[K]) {
-    setDraft(prev => ({ ...prev, [k]: v }));
+    const value: any = typeof v === "number" ? toNum(v) : v === "" ? "" : v;
+    setDraft(prev => ({ ...prev, [k]: value }));
   }
 
   function handleSave() {
-    // 基本驗證
-    if (!draft.name?.trim()) {
+    const p = normalizeProduct(draft);
+
+    // final hardening: never let NaN/undefined go out
+    (['boxPrice','boxQuantity','orderBoxes','unitPrice','totalQuantity','lengthM','widthM','heightM','weightKg'] as const).forEach((key) => {
+      (p as any)[key] = toNum((p as any)[key], 0);
+    });
+    p.boxQuantity = Math.max(1, p.boxQuantity || 1);
+    p.orderBoxes = Math.max(0, p.orderBoxes || 0);
+
+    if (!p.name?.trim()) {
       alert("請輸入商品名稱");
       return;
     }
-    
-    if (draft.lengthM <= 0 || draft.widthM <= 0 || draft.heightM <= 0) {
+
+    if (p.lengthM <= 0 || p.widthM <= 0 || p.heightM <= 0) {
       alert("請輸入有效的尺寸");
       return;
     }
-    
-    if (draft.weightKg <= 0) {
+
+    if (p.weightKg <= 0) {
       alert("請輸入有效的重量");
       return;
     }
 
-    onSubmit(draft);
+    if (p.inputMode === 'perBox') {
+      if ((p.boxPrice || 0) <= 0) {
+        alert('請輸入有效的單箱價格');
+        return;
+      }
+      if ((p.boxQuantity || 0) <= 0) {
+        alert('請輸入有效的單箱數量');
+        return;
+      }
+      if ((p.orderBoxes || 0) < 0) {
+        alert('訂購箱數不可為負');
+        return;
+      }
+    } else {
+      if ((p.unitPrice || 0) <= 0) {
+        alert('請輸入有效的單個價格');
+        return;
+      }
+      if ((p.totalQuantity || 0) <= 0) {
+        alert('請輸入有效的總數量');
+        return;
+      }
+    }
+
+    onSubmit(p);
   }
+
+  const toMmString = (m?: number) => {
+    const n = toNum(m, 0);
+    const mm = Math.round(n * 1000);
+    return Number.isFinite(mm) && mm > 0 ? String(mm) : "";
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -75,20 +170,40 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
           />
         </div>
 
-        <Tabs value={draft.inputMode ?? "perBox"} onValueChange={(v: string) => set("inputMode", v as ProductInputMode)}>
-          <TabsList className="w-full">
-            <TabsTrigger className="flex-1" value="perBox">單箱模式</TabsTrigger>
-            <TabsTrigger className="flex-1" value="perUnit">單個模式</TabsTrigger>
-          </TabsList>
+        {/* 輸入模式選擇按鈕 */}
+        <div className="flex items-center justify-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-1 shadow-sm w-fit mx-auto">
+          <button 
+            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+              draft.inputMode === "perBox" 
+                ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
+                : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
+            }`}
+            onClick={() => setDraft(prev => normalizeProduct({ ...prev, inputMode: "perBox" as const }))}
+          >
+            單箱模式
+          </button>
+          <button 
+            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+              draft.inputMode === "perUnit" 
+                ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg transform scale-105" 
+                : "text-blue-700 hover:text-blue-900 hover:bg-blue-100 hover:shadow-md"
+            }`}
+            onClick={() => setDraft(prev => normalizeProduct({ ...prev, inputMode: "perUnit" as const }))}
+          >
+            單個模式
+          </button>
+        </div>
 
-          <TabsContent value="perBox" className="pt-3">
+        {/* 單箱模式輸入 */}
+        {draft.inputMode === "perBox" && (
+          <div className="pt-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>單箱價格</Label>
                 <Input
                   inputMode="decimal"
                   value={draft.boxPrice ?? ""}
-                  onChange={(e) => set("boxPrice", Number(e.target.value) || 0)}
+                  onChange={(e) => set("boxPrice", toNum(e.target.value))}
                 />
               </div>
               <div>
@@ -96,7 +211,7 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
                 <Input
                   inputMode="numeric"
                   value={draft.boxQuantity ?? ""}
-                  onChange={(e) => set("boxQuantity", Number(e.target.value) || 0)}
+                  onChange={(e) => set("boxQuantity", toNum(e.target.value))}
                 />
               </div>
               <div>
@@ -104,20 +219,23 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
                 <Input
                   inputMode="numeric"
                   value={draft.orderBoxes ?? ""}
-                  onChange={(e) => set("orderBoxes", Number(e.target.value) || 0)}
+                  onChange={(e) => set("orderBoxes", toNum(e.target.value))}
                 />
               </div>
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="perUnit" className="pt-3">
+        {/* 單個模式輸入 */}
+        {draft.inputMode === "perUnit" && (
+          <div className="pt-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>單個價格</Label>
                 <Input
                   inputMode="decimal"
                   value={draft.unitPrice ?? ""}
-                  onChange={(e) => set("unitPrice", Number(e.target.value) || 0)}
+                  onChange={(e) => set("unitPrice", toNum(e.target.value))}
                 />
               </div>
               <div>
@@ -125,12 +243,12 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
                 <Input
                   inputMode="numeric"
                   value={draft.totalQuantity ?? ""}
-                  onChange={(e) => set("totalQuantity", Number(e.target.value) || 0)}
+                  onChange={(e) => set("totalQuantity", toNum(e.target.value))}
                 />
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
 
         <Separator />
 
@@ -140,24 +258,24 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
             <Label>長 (mm)</Label>
             <Input 
               inputMode="numeric"
-              value={Math.round((draft.lengthM ?? 0) * 1000) || ""}
-              onChange={(e) => set("lengthM", (Number(e.target.value) || 0) / 1000)}
+              value={toMmString(draft.lengthM)}
+              onChange={(e) => set("lengthM", toNum(e.target.value) / 1000)}
             />
           </div>
           <div>
             <Label>寬 (mm)</Label>
             <Input 
               inputMode="numeric"
-              value={Math.round((draft.widthM ?? 0) * 1000) || ""}
-              onChange={(e) => set("widthM", (Number(e.target.value) || 0) / 1000)}
+              value={toMmString(draft.widthM)}
+              onChange={(e) => set("widthM", toNum(e.target.value) / 1000)}
             />
           </div>
           <div>
             <Label>高 (mm)</Label>
             <Input 
               inputMode="numeric"
-              value={Math.round((draft.heightM ?? 0) * 1000) || ""}
-              onChange={(e) => set("heightM", (Number(e.target.value) || 0) / 1000)}
+              value={toMmString(draft.heightM)}
+              onChange={(e) => set("heightM", toNum(e.target.value) / 1000)}
             />
           </div>
         </div>
@@ -168,17 +286,17 @@ export function ProductEditor({ initial, onSubmit }: ProductEditorProps) {
             <Input 
               inputMode="decimal"
               value={draft.weightKg ?? ""}
-              onChange={(e) => set("weightKg", Number(e.target.value) || 0)}
+              onChange={(e) => set("weightKg", toNum(e.target.value))}
             />
           </div>
           <div className="flex flex-col justify-end">
             <div className="text-sm text-muted-foreground">
-              CBM (m³)：<b>{cbm.toFixed(3)}</b>
+              CBM (m³)：<b>{Number.isFinite(cbm) ? cbm.toFixed(3) : '0.000'}</b>
             </div>
           </div>
           <div className="flex flex-col justify-end">
             <div className="text-sm text-muted-foreground">
-              計費重(空運)：<b>{chargeableWeight.toFixed(2)} kg</b>
+              計費重(空運)：<b>{Number.isFinite(chargeableWeight) ? chargeableWeight.toFixed(2) : '0.00'} kg</b>
             </div>
           </div>
         </div>

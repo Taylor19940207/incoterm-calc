@@ -32,6 +32,10 @@ export interface Product {
   widthM: number;         // 寬度 (m)
   heightM: number;        // 高度 (m)
   weightKg: number;       // 每箱重量 (kg)
+  
+  // 物流配置
+  transportMode?: TransportMode;  // 運輸方式
+  customDivisor?: number;         // 自定義體積重係數
 }
 
 // 新增：成本項目結構

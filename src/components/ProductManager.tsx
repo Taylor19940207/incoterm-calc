@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Product, ProductInputMode } from '../types';
+import { Product } from '../types';
 import { Sheet, SheetTrigger, SheetContent } from './ui/sheet';
 import { Button } from './ui/button';
 import { ProductEditor } from './ProductEditor';
+import LogisticsConfigDrawer, { LogisticsConfig } from './LogisticsConfigDrawer';
 
 interface ProductManagerProps {
   products: Product[];
@@ -10,11 +11,7 @@ interface ProductManagerProps {
 }
 
 export default function ProductManager({ products, onUpdate }: ProductManagerProps) {
-  // 新增：物流配置狀態
-  const [transportMode, setTransportMode] = useState<'air' | 'courier' | 'sea' | 'truck'>('air');
-  const [customDivisor, setCustomDivisor] = useState<string>('');
-
-  // 新增：批量操作狀態
+  // 批量操作狀態
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
   const deleteProduct = (id: string) => {
@@ -44,12 +41,10 @@ export default function ProductManager({ products, onUpdate }: ProductManagerPro
   };
 
   const calculateVolumetricWeight = (product: Product) => {
+    // 使用預設的空運係數，實際係數會在物流配置中設定
     const volumeCm3 = (product.lengthM * product.widthM * product.heightM) * 1000000; // 轉換為 cm³
-    const divisor = transportMode === 'air' ? 6000 : 
-                   transportMode === 'courier' ? 5000 : 
-                   transportMode === 'truck' ? 6000 : 0;
+    const divisor = 6000; // 預設空運係數
     
-    if (divisor === 0) return 'N/A';
     return (volumeCm3 / divisor).toFixed(2);
   };
 
@@ -62,18 +57,6 @@ export default function ProductManager({ products, onUpdate }: ProductManagerPro
       newSelected.add(id);
     }
     setSelectedProducts(newSelected);
-  };
-
-  const applyTransportMode = () => {
-    if (selectedProducts.size === 0) return;
-    
-    const updatedProducts = products.map(p => {
-      if (selectedProducts.has(p.id)) {
-        return { ...p, transportMode };
-      }
-      return p;
-    });
-    onUpdate(updatedProducts);
   };
 
   const clearDimensions = () => {
@@ -95,6 +78,24 @@ export default function ProductManager({ products, onUpdate }: ProductManagerPro
     onUpdate(updatedProducts);
   };
 
+  const handleLogisticsConfigApply = (config: LogisticsConfig) => {
+    // 更新選中商品的物流配置
+    const updatedProducts = products.map(p => {
+      if (selectedProducts.has(p.id)) {
+        return { 
+          ...p, 
+          transportMode: config.transportMode,
+          customDivisor: config.customDivisor
+        };
+      }
+      return p;
+    });
+    onUpdate(updatedProducts);
+    
+    // 清空選擇
+    setSelectedProducts(new Set());
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-6">
@@ -107,52 +108,13 @@ export default function ProductManager({ products, onUpdate }: ProductManagerPro
         </button>
       </div>
 
-      {/* 新增：物流配置 */}
-      <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h3 className="text-lg font-semibold text-blue-800 mb-3">🚚 物流配置</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">運輸方式</label>
-            <select
-              value={transportMode}
-              onChange={(e) => setTransportMode(e.target.value as any)}
-              className="w-full p-2 border border-gray-300 rounded-lg"
-            >
-              <option value="air">空運 (係數: 6000)</option>
-              <option value="courier">快遞 (係數: 5000)</option>
-              <option value="sea">海運 (無體積重)</option>
-              <option value="truck">卡車 (係數: 6000)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">自定義係數</label>
-            <input
-              type="number"
-              placeholder="覆寫預設係數"
-              value={customDivisor}
-              onChange={(e) => setCustomDivisor(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={applyTransportMode}
-              disabled={selectedProducts.size === 0}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              應用到選中產品
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 新增：批量操作工具欄 */}
-      {selectedProducts.size > 0 && (
-        <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <span className="text-purple-700 font-medium">
-              已選中 {selectedProducts.size} 個產品
-            </span>
+      {/* 批量操作工具欄 */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600">
+            已選中 {selectedProducts.size} 個商品
+          </span>
+          {selectedProducts.size > 0 && (
             <div className="flex gap-2">
               <button
                 onClick={clearDimensions}
@@ -167,9 +129,22 @@ export default function ProductManager({ products, onUpdate }: ProductManagerPro
                 取消選擇
               </button>
             </div>
-          </div>
+          )}
         </div>
-      )}
+        
+        {/* 物流配置按鈕 */}
+        <LogisticsConfigDrawer
+          selectedProducts={selectedProducts}
+          totalProducts={products.length}
+          onApply={handleLogisticsConfigApply}
+        >
+          <Button variant="outline" className="flex items-center gap-2">
+            🚚 物流配置
+          </Button>
+        </LogisticsConfigDrawer>
+      </div>
+
+
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">

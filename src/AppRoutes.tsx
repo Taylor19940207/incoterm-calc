@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { RepoProvider, useQuotes } from './repo/RepoProvider';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { initializeSeedData } from './repo/seedData';
 import MainLayout from './components/MainLayout';
 import Dashboard from './pages/Dashboard';
@@ -40,9 +41,11 @@ const AppContent: React.FC = () => {
 const AppRoutes: React.FC = () => {
   return (
     <BrowserRouter>
-      <RepoProvider>
-        <AppContent />
-      </RepoProvider>
+      <LanguageProvider>
+        <RepoProvider>
+          <AppContent />
+        </RepoProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 };

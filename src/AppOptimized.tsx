@@ -379,9 +379,9 @@ export default function AppOptimized() {
 
 
         
-        <div className="grid gap-6 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {/* 基本參數 */}
-          <section className="xl:col-span-1 2xl:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
+          <section className="lg:col-span-1 xl:col-span-1 2xl:col-span-1 rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-lg font-semibold">基本參數</h2>
 
             {/* 貨幣選擇 */}
@@ -408,7 +408,7 @@ export default function AppOptimized() {
             </div>
 
             {/* 貿易條件 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-sm text-gray-600">{t.supplierTerm}</label>
                 <select 
@@ -463,7 +463,7 @@ export default function AppOptimized() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <InputField
                   name="markupPct"
                   label={t.markup}
@@ -498,7 +498,7 @@ export default function AppOptimized() {
                 {t["出口費用包含方式（決定單位成本定義）"]}
               </h3>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
                   <input
                     type="radio"
@@ -539,7 +539,7 @@ export default function AppOptimized() {
                   {t["分攤方式選擇（多產品混裝時用）"]}
                 </h3>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
                     <input
                       type="radio"
@@ -621,7 +621,7 @@ export default function AppOptimized() {
           </section>
 
           {/* 成本明細輸入 */}
-          <section className="xl:col-span-3 2xl:col-span-4 rounded-2xl bg-white p-4 shadow-sm">
+          <section className="lg:col-span-2 xl:col-span-3 2xl:col-span-4 rounded-2xl bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold">{t.costParams}</h2>
@@ -655,7 +655,7 @@ export default function AppOptimized() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               <InputField
                 name="inlandToPort"
                 label={t.inlandToPort}
@@ -842,7 +842,7 @@ export default function AppOptimized() {
         <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold">{t.results}</h2>
           
-          <div className="grid grid-cols-2 gap-6 xl:grid-cols-4 2xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
             <div className="text-center">
               <div className="text-sm text-gray-500">{t.unitQuote}</div>
               <div className="text-2xl font-bold">{labelCurrency(productQuotes.products[0]?.suggestedQuote || 0)}</div>

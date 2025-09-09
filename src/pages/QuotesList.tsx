@@ -14,10 +14,15 @@ import {
 } from 'lucide-react';
 import { useQuotes } from '../repo/RepoProvider';
 import { Quote } from '../types/db';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const QuotesList: React.FC = () => {
   const navigate = useNavigate();
   const quotes = useQuotes();
+  
+  // 使用全局語言 Context
+  const { lang, t } = useLanguage();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [quotesList, setQuotesList] = useState<Quote[]>([]);
@@ -74,10 +79,10 @@ const QuotesList: React.FC = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'draft': return '草稿';
-      case 'sent': return '已發送';
-      case 'won': return '已成交';
-      case 'lost': return '已流失';
+      case 'draft': return t['草稿'] || '草稿';
+      case 'sent': return t['已發送'] || '已發送';
+      case 'won': return t['已成交'] || '已成交';
+      case 'lost': return t['已流失'] || '已流失';
       default: return status;
     }
   };
@@ -104,7 +109,7 @@ const QuotesList: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">載入報價列表中...</p>
+          <p className="mt-4 text-gray-600">{t['載入報價列表中...'] || '載入報價列表中...'}</p>
         </div>
       </div>
     );
@@ -115,16 +120,18 @@ const QuotesList: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">報價管理</h1>
-          <p className="text-gray-600">管理所有報價單據</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t['報價管理'] || '報價管理'}</h1>
+          <p className="text-gray-600">{t['管理所有報價單據'] || '管理所有報價單據'}</p>
         </div>
-        <button
-          onClick={() => navigate('/quotes/new')}
-          className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          新增報價
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/quotes/new')}
+            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t['新增報價'] || '新增報價'}
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -132,7 +139,7 @@ const QuotesList: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">總報價數</p>
+              <p className="text-sm font-medium text-gray-600">{t['總報價數'] || '總報價數'}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -144,7 +151,7 @@ const QuotesList: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">總報價金額</p>
+              <p className="text-sm font-medium text-gray-600">{t['總報價金額'] || '總報價金額'}</p>
               <p className="text-2xl font-bold text-gray-900">
                 {(() => {
                   // 使用第一個報價的貨幣，如果沒有則使用 JPY
@@ -163,7 +170,7 @@ const QuotesList: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">平均毛利率</p>
+              <p className="text-sm font-medium text-gray-600">{t['平均毛利率'] || '平均毛利率'}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.avgMargin.toFixed(1)}%</p>
             </div>
             <div className="p-3 bg-yellow-100 rounded-lg">
@@ -181,7 +188,7 @@ const QuotesList: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="搜尋客戶名稱或貿易條件..."
+                placeholder={t['搜尋客戶名稱或貿易條件...'] || '搜尋客戶名稱或貿易條件...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -195,11 +202,11 @@ const QuotesList: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="all">全部狀態</option>
-              <option value="draft">草稿</option>
-              <option value="sent">已發送</option>
-              <option value="won">已成交</option>
-              <option value="lost">已流失</option>
+              <option value="all">{t['全部狀態'] || '全部狀態'}</option>
+              <option value="draft">{t['草稿'] || '草稿'}</option>
+              <option value="sent">{t['已發送'] || '已發送'}</option>
+              <option value="won">{t['已成交'] || '已成交'}</option>
+              <option value="lost">{t['已流失'] || '已流失'}</option>
             </select>
           </div>
         </div>
@@ -211,13 +218,13 @@ const QuotesList: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">客戶</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">貿易條件</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">報價金額</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">毛利率</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">建立時間</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['客戶'] || '客戶'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['貿易條件'] || '貿易條件'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['報價金額'] || '報價金額'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['毛利率'] || '毛利率'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['操作'] || '操作'}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -227,12 +234,12 @@ const QuotesList: React.FC = () => {
                     <div className="flex items-center">
                       <User className="h-5 w-5 text-gray-400 mr-2" />
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{quote?.meta?.customerName || '未知'}</div>
-                        <div className="text-sm text-gray-500">#{quote?.code || '未知'}</div>
+                        <div className="text-sm font-medium text-gray-900">{quote?.meta?.customerName || (t['未知'] || '未知')}</div>
+                        <div className="text-sm text-gray-500">#{quote?.code || (t['未知'] || '未知')}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quote?.inputs?.incotermTo || '未知'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quote?.inputs?.incotermTo || (t['未知'] || '未知')}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {(() => {
                       const currency = quote?.inputs?.currency || 'JPY';
@@ -268,21 +275,21 @@ const QuotesList: React.FC = () => {
                         className="text-blue-600 hover:text-blue-900 flex items-center px-2 py-1 rounded-lg hover:bg-blue-50 transition-all duration-200"
                       >
                         <Eye className="h-4 w-4 mr-1" />
-                        查看
+                        {t['查看'] || '查看'}
                       </button>
                       <button
                         onClick={() => navigate(`/quotes/${quote?.id}/edit`)}
                         className="text-gray-600 hover:text-gray-900 flex items-center px-2 py-1 rounded-lg hover:bg-gray-50 transition-all duration-200"
                       >
                         <Edit className="h-4 w-4 mr-1" />
-                        編輯
+                        {t['編輯'] || '編輯'}
                       </button>
                       <button 
                         onClick={() => deleteQuote(quote?.id || '')}
                         className="text-red-600 hover:text-red-900 flex items-center"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
-                        刪除
+                        {t['刪除'] || '刪除'}
                       </button>
                     </div>
                   </td>
@@ -296,8 +303,8 @@ const QuotesList: React.FC = () => {
           <div className="text-center py-12">
             <div className="text-gray-500">
               <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">沒有找到報價</h3>
-              <p className="mt-1 text-sm text-gray-500">嘗試調整搜尋條件或新增報價</p>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">{t['沒有找到報價'] || '沒有找到報價'}</h3>
+              <p className="mt-1 text-sm text-gray-500">{t['嘗試調整搜尋條件或新增報價'] || '嘗試調整搜尋條件或新增報價'}</p>
             </div>
           </div>
         )}

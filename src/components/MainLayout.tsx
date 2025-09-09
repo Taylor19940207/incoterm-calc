@@ -12,6 +12,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -21,15 +22,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // 使用全局語言 Context
+  const { lang, setLang, t } = useLanguage();
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: '報價管理', href: '/quotes', icon: FileText },
-    { name: '客戶管理', href: '/customers', icon: Users },
-    { name: '商品管理', href: '/products', icon: Package },
-    { name: '物流配置', href: '/logistics', icon: Truck },
-    { name: '報表分析', href: '/reports', icon: BarChart3 },
-    { name: '系統設定', href: '/settings', icon: Settings },
+    { name: t['報價管理'] || '報價管理', href: '/quotes', icon: FileText },
+    { name: t['客戶管理'] || '客戶管理', href: '/customers', icon: Users },
+    { name: t['商品管理'] || '商品管理', href: '/products', icon: Package },
+    { name: t['物流配置'] || '物流配置', href: '/logistics', icon: Truck },
+    { name: t['報表分析'] || '報表分析', href: '/reports', icon: BarChart3 },
+    { name: t['系統設定'] || '系統設定', href: '/settings', icon: Settings },
   ];
 
   const isActive = (href: string) => {
@@ -102,7 +106,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               className="w-full flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
             >
               <Plus className="mr-2 h-4 w-4" />
-              新增報價
+              {t['新增報價'] || '新增報價'}
             </button>
           </div>
         </nav>
@@ -120,15 +124,38 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Menu className="h-6 w-6" />
             </button>
             
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600 font-medium">
-                {new Date().toLocaleDateString('zh-TW', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric',
-                  weekday: 'long'
-                })}
-              </div>
+            <div className="text-sm text-gray-600 font-medium">
+              {new Date().toLocaleDateString(lang === 'ja' ? 'ja-JP' : 'zh-TW', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long'
+              })}
+            </div>
+            
+            {/* 語言選擇器 */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">{t.langLabel}：</span>
+              <button 
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+                  lang === "zh" 
+                    ? "bg-blue-500 text-white shadow-md hover:bg-blue-600" 
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"
+                }`} 
+                onClick={() => setLang("zh")}
+              >
+                {t.zh}
+              </button>
+              <button 
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+                  lang === "ja" 
+                    ? "bg-blue-500 text-white shadow-md hover:bg-blue-600" 
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"
+                }`} 
+                onClick={() => setLang("ja")}
+              >
+                {t.ja}
+              </button>
             </div>
           </div>
         </div>

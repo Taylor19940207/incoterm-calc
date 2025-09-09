@@ -302,6 +302,12 @@ const QuoteEditor: React.FC<QuoteEditorProps> = ({ mode }) => {
 
         const newQuote = await quotes.create(createInput);
         console.log('新增報價成功:', newQuote);
+        setOriginal(newQuote);
+        // 更新 form 狀態以匹配新創建的數據
+        setForm({
+          meta: newQuote.meta,
+          inputs: newQuote.inputs
+        });
         setDirty(false);
         alert('報價已儲存！');
         navigate(`/quotes/${newQuote.id}`);
@@ -324,6 +330,11 @@ const QuoteEditor: React.FC<QuoteEditorProps> = ({ mode }) => {
         const updatedQuote = await quotes.update(id!, updateInput);
         console.log('更新報價成功:', updatedQuote);
         setOriginal(updatedQuote);
+        // 更新 form 狀態以匹配更新後的數據
+        setForm({
+          meta: updatedQuote.meta,
+          inputs: updatedQuote.inputs
+        });
         setDirty(false);
         alert('報價已更新！');
       }

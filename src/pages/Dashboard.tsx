@@ -8,15 +8,36 @@ import {
   Eye,
   Edit,
   Calendar,
-  User
+  User,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useQuotes } from '../repo/RepoProvider';
 import { QuoteStats, TrendData, CostShare, Quote } from '../types/db';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useFxConversion } from '../hooks/useFx';
+import { PublicFxProvider } from '../services/fx';
+import { Currency } from '../types/fx';
+import FxPreferences from '../components/FxPreferences';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const quotes = useQuotes();
+  
+  // 使用全局語言 Context
+  const { lang, t } = useLanguage();
+  
+  // 匯率轉換
+  const fx = useFxConversion(new PublicFxProvider());
+  
+  // 如果匯率載入失敗，暫時禁用匯率轉換
+  const shouldUseFx = !fx.error;
+  
+  // 匯率手續費設定
+  const [fxFeePct, setFxFeePct] = useState(0);
   
   // 真實數據狀態
   const [stats, setStats] = useState<QuoteStats>({
@@ -66,7 +87,7 @@ const Dashboard: React.FC = () => {
     };
 
     loadData();
-  }, [quotes]);
+  }, []); // 移除 quotes 依賴項，只在組件掛載時載入一次
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -80,10 +101,10 @@ const Dashboard: React.FC = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'draft': return '草稿';
-      case 'sent': return '已發送';
-      case 'won': return '已成交';
-      case 'lost': return '已流失';
+      case 'draft': return t['草稿'] || '草稿';
+      case 'sent': return t['已發送'] || '已發送';
+      case 'won': return t['已成交'] || '已成交';
+      case 'lost': return t['已流失'] || '已流失';
       default: return status;
     }
   };
@@ -93,7 +114,7 @@ const Dashboard: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">載入中...</p>
+          <p className="mt-4 text-gray-600">{t['載入中...'] || '載入中...'}</p>
         </div>
       </div>
     );
@@ -105,23 +126,25 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Dashboard</h1>
-          <p className="text-gray-600 mt-1">報價系統總覽與關鍵指標</p>
+          <p className="text-gray-600 mt-1">{t['報價系統總覽與關鍵指標'] || '報價系統總覽與關鍵指標'}</p>
         </div>
-        <button
-          onClick={() => navigate('/quotes/new')}
-          className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 w-fit"
-        >
-          <FileText className="mr-2 h-5 w-5" />
-          新增報價
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/quotes/new')}
+            className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 w-fit"
+          >
+            <FileText className="mr-2 h-5 w-5" />
+            {t['新增報價'] || '新增報價'}
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">開放報價數</p>
+              <p className="text-sm font-medium text-gray-600">{t['開放報價數'] || '開放報價數'}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.openQuotes}</p>
             </div>
             <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl shadow-lg">
@@ -133,7 +156,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">平均毛利率</p>
+              <p className="text-sm font-medium text-gray-600">{t['平均毛利率'] || '平均毛利率'}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.avgMarginPct.toFixed(1)}%</p>
             </div>
             <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-200 rounded-xl shadow-lg">
@@ -145,15 +168,37 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">總報價金額</p>
+              <p className="text-sm font-medium text-gray-600">{t['總報價金額'] || '總報價金額'}</p>
               <p className="text-2xl font-bold text-gray-900">
                 {(() => {
-                  // 使用第一個報價的貨幣，如果沒有則使用 JPY
-                  const firstQuote = recentQuotes[0];
-                  const currency = firstQuote?.inputs?.currency || 'JPY';
-                  return `${currency} ${stats.quotedValue.toLocaleString()}`;
+                  if (fx.loading) return '載入中...';
+                  
+                  if (!shouldUseFx) {
+                    // 如果匯率轉換不可用，顯示原幣種
+                    const firstQuote = recentQuotes[0];
+                    const currency = firstQuote?.inputs?.currency || 'JPY';
+                    const total = recentQuotes.reduce((sum, quote) => {
+                      return sum + (quote.derived?.totals?.totalQuote || 0);
+                    }, 0);
+                    return `${currency} ${total.toLocaleString()}`;
+                  }
+                  
+                  // 計算所有報價的日幣總額
+                  const totalJPY = recentQuotes.reduce((sum, quote) => {
+                    const currency = quote.inputs?.currency as Currency || 'JPY';
+                    const amount = quote.derived?.totals?.totalQuote || 0;
+                    return sum + fx.convertToJPY(amount, currency, fxFeePct);
+                  }, 0);
+                  
+                  return fx.formatJPY(totalJPY);
                 })()}
               </p>
+              {fx.stale && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ 匯率超過12小時</p>
+              )}
+              {fx.error && (
+                <p className="text-xs text-red-600 mt-1">匯率載入失敗</p>
+              )}
             </div>
             <div className="p-3 bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl shadow-lg">
               <DollarSign className="h-6 w-6 text-yellow-600" />
@@ -164,11 +209,54 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">待出貨</p>
+              <p className="text-sm font-medium text-gray-600">{t['待出貨'] || '待出貨'}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.pendingShipments}</p>
             </div>
             <div className="p-3 bg-gradient-to-br from-purple-100 to-violet-200 rounded-xl shadow-lg">
               <Package className="h-6 w-6 text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* 匯率資訊卡片 */}
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-200 hover:scale-105">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">匯率狀態</p>
+              <p className="text-lg font-bold text-gray-900">
+                {fx.loading ? '載入中...' : 
+                 fx.error ? '載入失敗' : 
+                 fx.stale ? '過期' : '最新'}
+              </p>
+              {fx.lastUpdated && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {fx.lastUpdated.toLocaleTimeString()}
+                </p>
+              )}
+              {fxFeePct > 0 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  手續費: {fxFeePct}%
+                </p>
+              )}
+            </div>
+            <div className={`p-3 rounded-xl shadow-lg transition-all duration-200 ${
+              fx.loading 
+                ? 'bg-gradient-to-br from-blue-100 to-indigo-200' 
+                : fx.error 
+                ? 'bg-gradient-to-br from-red-100 to-rose-200'
+                : fx.stale
+                ? 'bg-gradient-to-br from-amber-100 to-yellow-200'
+                : 'bg-gradient-to-br from-green-100 to-emerald-200'
+            }`}>
+              {fx.loading ? (
+                <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+              ) : fx.error ? (
+                <XCircle className="h-6 w-6 text-red-600" />
+              ) : fx.stale ? (
+                <AlertCircle className="h-6 w-6 text-amber-600" />
+              ) : (
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              )}
             </div>
           </div>
         </div>
@@ -178,7 +266,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* 報價趨勢圖 */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 min-w-0 hover:shadow-xl transition-all duration-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">報價趨勢</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t['報價趨勢'] || '報價趨勢'}</h3>
           <div className="w-full h-80">
             <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trendData}>
@@ -187,8 +275,8 @@ const Dashboard: React.FC = () => {
               <YAxis />
               <Tooltip 
                 formatter={(value, name) => [
-                  name === 'count' ? `${value} 筆` : `$${value.toLocaleString()}`,
-                  name === 'count' ? '報價數量' : '報價金額'
+                  name === 'count' ? `${value} ${t['筆'] || '筆'}` : `$${value.toLocaleString()}`,
+                  name === 'count' ? (t['報價數量'] || '報價數量') : (t['報價金額'] || '報價金額')
                 ]}
               />
               <Line type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} />
@@ -200,7 +288,7 @@ const Dashboard: React.FC = () => {
 
         {/* 費用結構占比 */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200/50 min-w-0 hover:shadow-xl transition-all duration-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">費用結構占比</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t['費用結構占比'] || '費用結構占比'}</h3>
           <div className="w-full h-80">
             <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -226,7 +314,7 @@ const Dashboard: React.FC = () => {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value) => [`${value}%`, '占比']}
+                formatter={(value) => [`${value}%`, t['占比'] || '占比']}
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: 'none',
@@ -262,19 +350,19 @@ const Dashboard: React.FC = () => {
       {/* Recent Quotes Table */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200/50 min-w-0 hover:shadow-xl transition-all duration-200">
         <div className="p-6 border-b border-gray-200/50">
-          <h3 className="text-lg font-semibold text-gray-900">最近報價</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t['最近報價'] || '最近報價'}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px]">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">客戶</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">貿易條件</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">報價金額</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">毛利率</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">狀態</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">建立時間</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">操作</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['客戶'] || '客戶'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['貿易條件'] || '貿易條件'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['報價金額'] || '報價金額'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['毛利率'] || '毛利率'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t['操作'] || '操作'}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -284,16 +372,34 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center">
                       <User className="h-5 w-5 text-gray-400 mr-2" />
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{quote?.meta?.customerName || '未知'}</div>
+                        <div className="text-sm font-medium text-gray-900">{quote?.meta?.customerName || (t['未知'] || '未知')}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quote?.inputs?.incotermTo || '未知'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quote?.inputs?.incotermTo || (t['未知'] || '未知')}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {(() => {
-                      const currency = quote?.inputs?.currency || 'JPY';
+                      const currency = quote?.inputs?.currency as Currency || 'JPY';
                       const amount = quote?.derived?.totals?.totalQuote || 0;
-                      return `${currency} ${amount.toLocaleString()}`;
+                      
+                      if (fx.loading) return '載入中...';
+                      
+                      if (!shouldUseFx) {
+                        // 如果匯率轉換不可用，顯示原幣種
+                        return `${currency} ${amount.toLocaleString()}`;
+                      }
+                      
+                      const jpyAmount = fx.convertToJPY(amount, currency, fxFeePct);
+                      return (
+                        <div>
+                          <div className="font-medium">{fx.formatJPY(jpyAmount)}</div>
+                          {currency !== 'JPY' && (
+                            <div className="text-xs text-gray-500">
+                              {currency} {amount.toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      );
                     })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -314,7 +420,7 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                      {quote?.createdAt ? new Date(quote.createdAt).toLocaleDateString('zh-TW') : '未知'}
+                      {quote?.createdAt ? new Date(quote.createdAt).toLocaleDateString('zh-TW') : (t['未知'] || '未知')}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -324,14 +430,14 @@ const Dashboard: React.FC = () => {
                         className="text-blue-600 hover:text-blue-900 flex items-center px-2 py-1 rounded-lg hover:bg-blue-50 transition-all duration-200"
                       >
                         <Eye className="h-4 w-4 mr-1" />
-                        查看
+                        {t['查看'] || '查看'}
                       </button>
                       <button
                         onClick={() => navigate(`/quotes/${quote?.id}/edit`)}
                         className="text-gray-600 hover:text-gray-900 flex items-center px-2 py-1 rounded-lg hover:bg-gray-50 transition-all duration-200"
                       >
                         <Edit className="h-4 w-4 mr-1" />
-                        編輯
+                        {t['編輯'] || '編輯'}
                       </button>
                     </div>
                   </td>
@@ -340,6 +446,11 @@ const Dashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* 匯率偏好設定 */}
+      <div className="mt-6">
+        <FxPreferences onFxFeeChange={setFxFeePct} initialFee={fxFeePct} />
       </div>
     </div>
   );

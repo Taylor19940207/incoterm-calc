@@ -10,7 +10,11 @@ import {
   Calendar,
   User,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  MoreVertical,
+  CheckCircle,
+  Send,
+  XCircle
 } from 'lucide-react';
 import { useQuotes } from '../repo/RepoProvider';
 import { Quote } from '../types/db';
@@ -57,6 +61,19 @@ const QuotesList: React.FC = () => {
         console.error('刪除報價失敗:', error);
         alert('刪除失敗，請重試');
       }
+    }
+  };
+
+  const updateQuoteStatus = async (id: string, newStatus: 'draft' | 'sent' | 'won' | 'lost') => {
+    try {
+      await quotes.update(id, { status: newStatus });
+      // 重新載入列表
+      const updatedQuotes = await quotes.list();
+      setQuotesList(updatedQuotes);
+      alert('狀態已更新');
+    } catch (error) {
+      console.error('更新狀態失敗:', error);
+      alert('狀態更新失敗，請重試');
     }
   };
 
@@ -222,7 +239,7 @@ const QuotesList: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['貿易條件'] || '貿易條件'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['報價金額'] || '報價金額'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['毛利率'] || '毛利率'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['操作'] || '操作'}</th>
               </tr>
@@ -257,10 +274,12 @@ const QuotesList: React.FC = () => {
                       return '0.0';
                     })()}%
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
-                      {getStatusText(quote?.status || 'draft')}
-                    </span>
+                  <td className="px-6 py-4 whitespace-nowrap w-full">
+                    <div className="w-full flex items-center justify-center">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
+                        {getStatusText(quote?.status || 'draft')}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex items-center">
@@ -284,9 +303,43 @@ const QuotesList: React.FC = () => {
                         <Edit className="h-4 w-4 mr-1" />
                         {t['編輯'] || '編輯'}
                       </button>
+                      
+                      {/* 狀態更新按鈕 */}
+                      {quote?.status === 'draft' && (
+                        <button
+                          onClick={() => updateQuoteStatus(quote?.id || '', 'sent')}
+                          className="text-green-600 hover:text-green-900 flex items-center px-2 py-1 rounded-lg hover:bg-green-50 transition-all duration-200"
+                          title="發送報價"
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          發送
+                        </button>
+                      )}
+                      
+                      {quote?.status === 'sent' && (
+                        <>
+                          <button
+                            onClick={() => updateQuoteStatus(quote?.id || '', 'won')}
+                            className="text-green-600 hover:text-green-900 flex items-center px-2 py-1 rounded-lg hover:bg-green-50 transition-all duration-200"
+                            title="標記為成交"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            成交
+                          </button>
+                          <button
+                            onClick={() => updateQuoteStatus(quote?.id || '', 'lost')}
+                            className="text-red-600 hover:text-red-900 flex items-center px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-200"
+                            title="標記為流失"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            流失
+                          </button>
+                        </>
+                      )}
+                      
                       <button 
                         onClick={() => deleteQuote(quote?.id || '')}
-                        className="text-red-600 hover:text-red-900 flex items-center"
+                        className="text-red-600 hover:text-red-900 flex items-center px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-200"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         {t['刪除'] || '刪除'}

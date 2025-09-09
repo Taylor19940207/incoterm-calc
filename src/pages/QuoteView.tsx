@@ -137,7 +137,7 @@ const QuoteView: React.FC = () => {
           </div>
         </div>
         <div className="flex space-x-3">
-          <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
+          <span className={`inline-flex items-center justify-center px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
             {getStatusText(quote?.status || 'draft')}
           </span>
           <button

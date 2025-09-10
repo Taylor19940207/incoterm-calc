@@ -5,6 +5,7 @@ import { CreateQuoteInput, UpdateQuoteInput, Quote } from '../types/db';
 import IncotermQuoteCalculatorOptimized from '../AppOptimized';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { ArrowLeft, Save, X } from 'lucide-react';
+import QuoteStatusManager from '../components/QuoteStatusManager';
 
 interface QuoteEditorProps {
   mode: 'create' | 'edit';
@@ -271,6 +272,25 @@ const QuoteEditor: React.FC<QuoteEditorProps> = ({ mode }) => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [dirty]);
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!original) return;
+    
+    try {
+      // 更新報價狀態
+      const updatedQuote = { ...original, status: newStatus as "draft" | "sent" | "won" | "lost" };
+      await quotes.update(original.id, updatedQuote);
+      setOriginal(updatedQuote);
+    } catch (error) {
+      console.error('更新報價狀態失敗:', error);
+      alert('更新狀態失敗，請重試');
+    }
+  };
+
+  const handleOrderCreated = (orderId: string) => {
+    // 導向新建立的訂單頁面
+    navigate(`/orders/${orderId}`);
+  };
+
   const handleSave = async () => {
     if (!form?.meta?.customerName?.trim()) {
       alert('請輸入客戶名稱');
@@ -409,6 +429,18 @@ const QuoteEditor: React.FC<QuoteEditorProps> = ({ mode }) => {
           </button>
         </div>
       </div>
+
+      {/* 狀態管理 */}
+      {mode === 'edit' && original && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">狀態管理</h3>
+          <QuoteStatusManager 
+            quote={original} 
+            onStatusChange={handleStatusChange}
+            onOrderCreated={handleOrderCreated}
+          />
+        </div>
+      )}
 
       {/* 基本資訊表單 */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

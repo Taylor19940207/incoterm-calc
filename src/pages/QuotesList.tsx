@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useQuotes } from '../repo/RepoProvider';
 import { Quote } from '../types/db';
+import { OrdersService } from '../services/OrdersService';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const QuotesList: React.FC = () => {
@@ -66,11 +67,47 @@ const QuotesList: React.FC = () => {
 
   const updateQuoteStatus = async (id: string, newStatus: 'draft' | 'sent' | 'won' | 'lost') => {
     try {
+      if (newStatus === 'won') {
+        // 檢查是否已經有對應的訂單
+        const existingOrder = OrdersService.getOrderByQuoteId(id);
+        if (existingOrder) {
+          alert('此報價已經有對應的訂單了');
+          return;
+        }
+        
+        // 獲取報價資料
+        const quote = await quotes.get(id);
+        if (!quote) {
+          alert('找不到報價資料');
+          return;
+        }
+        
+        // 建立訂單（使用預設值）
+        const order = OrdersService.createFromQuote(quote, {
+          quoteId: quote.id,
+          transportMode: 'sea',
+          parties: {
+            supplier: { name: quote.meta?.customerName || '供應商', contact: quote.meta?.contactInfo || '' },
+            exporter: { name: '本公司', contact: '' },
+            importer: { name: quote.meta?.customerName || '進口商', contact: quote.meta?.contactInfo || '' }
+          },
+          notes: quote.meta?.notes || ''
+        });
+        
+        alert('報價已成交，訂單已自動建立！');
+        
+        // 導向新建立的訂單
+        navigate(`/orders/${order.id}`);
+      }
+      
       await quotes.update(id, { status: newStatus });
       // 重新載入列表
       const updatedQuotes = await quotes.list();
       setQuotesList(updatedQuotes);
-      alert('狀態已更新');
+      
+      if (newStatus !== 'won') {
+        alert('狀態已更新');
+      }
     } catch (error) {
       console.error('更新狀態失敗:', error);
       alert('狀態更新失敗，請重試');
@@ -235,13 +272,13 @@ const QuotesList: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['客戶'] || '客戶'}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['客戶'] || '客戶'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['貿易條件'] || '貿易條件'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['報價金額'] || '報價金額'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['毛利率'] || '毛利率'}</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['操作'] || '操作'}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['操作'] || '操作'}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -274,12 +311,10 @@ const QuotesList: React.FC = () => {
                       return '0.0';
                     })()}%
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap w-full">
-                    <div className="w-full flex items-center justify-center">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
-                        {getStatusText(quote?.status || 'draft')}
-                      </span>
-                    </div>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
+                      {getStatusText(quote?.status || 'draft')}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex items-center">

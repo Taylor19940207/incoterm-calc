@@ -1,4 +1,4 @@
-const CACHE_NAME = 'incoterm-calc-v8';
+const CACHE_NAME = 'incoterm-calc-v9';
 const urlsToCache = [
   '/',
   '/static/js/bundle.js',

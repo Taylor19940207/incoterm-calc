@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuotes } from '../repo/RepoProvider';
 import { Quote } from '../types/db';
 import { Edit, ArrowLeft, Copy, Trash2 } from 'lucide-react';
+import QuoteStatusManager from '../components/QuoteStatusManager';
 
 const QuoteView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -60,6 +61,25 @@ const QuoteView: React.FC = () => {
         alert('刪除失敗，請重試');
       }
     }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!quote) return;
+    
+    try {
+      // 更新報價狀態
+      const updatedQuote = { ...quote, status: newStatus as "draft" | "sent" | "won" | "lost" };
+      await quotes.update(quote.id, updatedQuote);
+      setQuote(updatedQuote);
+    } catch (error) {
+      console.error('更新報價狀態失敗:', error);
+      alert('更新狀態失敗，請重試');
+    }
+  };
+
+  const handleOrderCreated = (orderId: string) => {
+    // 導向新建立的訂單頁面
+    navigate(`/orders/${orderId}`);
   };
 
   const getStatusColor = (status: string) => {
@@ -164,6 +184,16 @@ const QuoteView: React.FC = () => {
             刪除
           </button>
         </div>
+      </div>
+
+      {/* Status Management */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">狀態管理</h3>
+        <QuoteStatusManager 
+          quote={quote} 
+          onStatusChange={handleStatusChange}
+          onOrderCreated={handleOrderCreated}
+        />
       </div>
 
       {/* Quote Details */}

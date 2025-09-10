@@ -10,7 +10,8 @@ import {
   Settings,
   Plus,
   Menu,
-  X
+  X,
+  ShoppingCart
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -29,6 +30,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: t['報價管理'] || '報價管理', href: '/quotes', icon: FileText },
+    { name: t['訂單管理'] || '訂單管理', href: '/orders', icon: ShoppingCart },
     { name: t['客戶管理'] || '客戶管理', href: '/customers', icon: Users },
     { name: t['商品管理'] || '商品管理', href: '/products', icon: Package },
     { name: t['物流配置'] || '物流配置', href: '/logistics', icon: Truck },

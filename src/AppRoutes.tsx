@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import QuotesList from './pages/QuotesList';
 import QuoteEditor from './pages/QuoteEditor';
 import QuoteView from './pages/QuoteView';
+import OrdersList from './pages/OrdersList';
+import OrderDetail from './pages/OrderDetail';
 import ProductList from './pages/ProductList';
 import LogisticsConfig from './pages/LogisticsConfig';
 import Reports from './pages/Reports';
@@ -28,6 +30,8 @@ const AppContent: React.FC = () => {
         <Route path="/quotes/new" element={<QuoteEditor mode="create" />} />
         <Route path="/quotes/:id" element={<QuoteView />} />
         <Route path="/quotes/:id/edit" element={<QuoteEditor mode="edit" />} />
+        <Route path="/orders" element={<OrdersList />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/products" element={<ProductList />} />
         <Route path="/logistics" element={<LogisticsConfig />} />
         <Route path="/reports" element={<Reports />} />

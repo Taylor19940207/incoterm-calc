@@ -10,6 +10,8 @@ const OrderDetail: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'plan' | 'tasks' | 'docs'>('plan');
+  const [showPlanEditor, setShowPlanEditor] = useState(false);
+  const [planForm, setPlanForm] = useState<Partial<Order['plan']>>({});
 
   useEffect(() => {
     if (id) {
@@ -43,6 +45,63 @@ const OrderDetail: React.FC = () => {
     const updatedOrder = OrdersService.updateDocStatus(order.id, docId, newStatus, url);
     if (updatedOrder) {
       setOrder(updatedOrder);
+    }
+  };
+
+  const handleEditPlan = () => {
+    if (!order) return;
+    setPlanForm({ ...order.plan });
+    setShowPlanEditor(true);
+  };
+
+  const handleSavePlan = () => {
+    if (!order) return;
+    
+    // 日期驗證
+    const { estPickupAt, estPortETD, estPortETA, estDeliveryAt } = planForm;
+    
+    if (estPickupAt && estPortETD && new Date(estPickupAt) > new Date(estPortETD)) {
+      alert('預計提貨日期不能晚於預計離港日期');
+      return;
+    }
+    
+    if (estPortETD && estPortETA && new Date(estPortETD) > new Date(estPortETA)) {
+      alert('預計離港日期不能晚於預計到港日期');
+      return;
+    }
+    
+    if (estPortETA && estDeliveryAt && new Date(estPortETA) > new Date(estDeliveryAt)) {
+      alert('預計到港日期不能晚於預計送達日期');
+      return;
+    }
+    
+    const updatedOrder = OrdersService.updateOrderPlan(order.id, planForm);
+    if (updatedOrder) {
+      setOrder(updatedOrder);
+      setShowPlanEditor(false);
+      alert('計畫已更新！');
+    }
+  };
+
+  const calculateDates = () => {
+    const { estPickupAt, estPortETD, estPortETA } = planForm;
+    
+    if (estPickupAt && !estPortETD) {
+      const pickup = new Date(estPickupAt);
+      pickup.setDate(pickup.getDate() + 2);
+      setPlanForm(prev => ({ ...prev, estPortETD: pickup.toISOString().split('T')[0] }));
+    }
+    
+    if (estPortETD && !estPortETA) {
+      const etd = new Date(estPortETD);
+      etd.setDate(etd.getDate() + 14);
+      setPlanForm(prev => ({ ...prev, estPortETA: etd.toISOString().split('T')[0] }));
+    }
+    
+    if (estPortETA && !planForm.estDeliveryAt) {
+      const eta = new Date(estPortETA);
+      eta.setDate(eta.getDate() + 3);
+      setPlanForm(prev => ({ ...prev, estDeliveryAt: eta.toISOString().split('T')[0] }));
     }
   };
 
@@ -206,34 +265,70 @@ const OrderDetail: React.FC = () => {
 
       {/* Timeline */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">訂單進度</h3>
-        <div className="flex items-center space-x-4">
-          {['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].map((status, index) => {
-            const isActive = status === order.status;
-            const isCompleted = ['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].indexOf(order.status) > index;
-            
-            return (
-              <React.Fragment key={status}>
-                <div className="flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isActive ? 'bg-blue-600 text-white' : 
-                    isCompleted ? 'bg-green-600 text-white' : 
-                    'bg-gray-200 text-gray-500'
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">訂單進度</h3>
+        <div className="relative">
+          {/* 背景連接線 */}
+          <div className="absolute top-6 left-0 right-0 h-0.5 bg-gray-200"></div>
+          
+          {/* 已完成連接線 */}
+          <div 
+            className="absolute top-6 left-0 h-0.5 bg-green-500 transition-all duration-700 ease-out"
+            style={{ 
+              width: `${(['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].indexOf(order.status)) * 16.66}%` 
+            }}
+          ></div>
+          
+          <div className="relative flex justify-between items-start">
+            {['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].map((status, index) => {
+              const isActive = status === order.status;
+              const isCompleted = ['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].indexOf(order.status) > index;
+              const stepNumber = index + 1;
+              
+              return (
+                <div key={status} className="flex flex-col items-center relative z-10">
+                  {/* 狀態圓圈 */}
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    isActive ? 'bg-white border-2 border-green-500 text-green-500 shadow-lg shadow-green-200' : 
+                    isCompleted ? 'bg-green-500 text-white shadow-lg' : 
+                    'bg-white border border-gray-300 text-gray-500'
                   }`}>
-                    {isCompleted ? <CheckCircle className="h-5 w-5" /> : 
-                     isActive ? <Clock className="h-5 w-5" /> : 
-                     <AlertCircle className="h-5 w-5" />}
+                    {isCompleted ? <CheckCircle className="h-6 w-6" /> : 
+                     <span className="text-sm font-semibold">{stepNumber}</span>}
                   </div>
-                  <span className={`text-xs mt-1 ${isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
-                    {getStatusText(status as OrderStatus)}
-                  </span>
+                  
+                  {/* 狀態文字 */}
+                  <div className="mt-4 text-center max-w-24">
+                    <span className={`text-sm font-semibold block leading-tight ${
+                      isActive ? 'text-gray-900' : 
+                      isCompleted ? 'text-gray-900' : 
+                      'text-gray-500'
+                    }`}>
+                      {getStatusText(status as OrderStatus)}
+                    </span>
+                    
+                    {/* 狀態標籤 */}
+                    <span className={`text-xs mt-1 block font-medium ${
+                      isActive ? 'text-green-600' : 
+                      isCompleted ? 'text-green-600' : 
+                      'text-gray-400'
+                    }`}>
+                      {isActive ? '進行中' : isCompleted ? '已完成' : '待處理'}
+                    </span>
+                  </div>
                 </div>
-                {index < 5 && (
-                  <div className={`flex-1 h-0.5 ${isCompleted ? 'bg-green-600' : 'bg-gray-200'}`} />
-                )}
-              </React.Fragment>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* 進度百分比 */}
+        <div className="mt-8 text-center">
+          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full border border-green-100 shadow-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+            <span className="text-sm font-medium text-green-700">
+              進度 {Math.round((['accepted', 'booked', 'customs_ready', 'shipped', 'arrived', 'completed'].indexOf(order.status) + 1) * 16.66)}%
+            </span>
+          </div>
         </div>
       </div>
 
@@ -303,23 +398,39 @@ const OrderDetail: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">重要日期</h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-900">重要日期</h4>
+                    <button
+                      onClick={handleEditPlan}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      編輯
+                    </button>
+                  </div>
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-600">預計提貨</label>
-                      <p className="text-sm text-gray-900">{order.plan.estPickupAt || '未設定'}</p>
+                      <p className={`text-sm ${order.plan.estPickupAt ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {order.plan.estPickupAt || '未設定'}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600">預計離港</label>
-                      <p className="text-sm text-gray-900">{order.plan.estPortETD || '未設定'}</p>
+                      <p className={`text-sm ${order.plan.estPortETD ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {order.plan.estPortETD || '未設定'}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600">預計到港</label>
-                      <p className="text-sm text-gray-900">{order.plan.estPortETA || '未設定'}</p>
+                      <p className={`text-sm ${order.plan.estPortETA ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {order.plan.estPortETA || '未設定'}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600">預計送達</label>
-                      <p className="text-sm text-gray-900">{order.plan.estDeliveryAt || '未設定'}</p>
+                      <p className={`text-sm ${order.plan.estDeliveryAt ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {order.plan.estDeliveryAt || '未設定'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -428,6 +539,87 @@ const OrderDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 編輯計畫彈窗 */}
+      {showPlanEditor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">編輯重要日期</h3>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-600">修改訂單的重要日期</p>
+                <button
+                  type="button"
+                  onClick={calculateDates}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  一鍵推算
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預計提貨</label>
+                  <input
+                    type="date"
+                    value={planForm.estPickupAt || ''}
+                    onChange={(e) => setPlanForm(prev => ({ ...prev, estPickupAt: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預計離港</label>
+                  <input
+                    type="date"
+                    value={planForm.estPortETD || ''}
+                    onChange={(e) => setPlanForm(prev => ({ ...prev, estPortETD: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預計到港</label>
+                  <input
+                    type="date"
+                    value={planForm.estPortETA || ''}
+                    onChange={(e) => setPlanForm(prev => ({ ...prev, estPortETA: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預計送達</label>
+                  <input
+                    type="date"
+                    value={planForm.estDeliveryAt || ''}
+                    onChange={(e) => setPlanForm(prev => ({ ...prev, estDeliveryAt: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                日期順序：提貨 ≤ 離港 ≤ 到港 ≤ 送達。修改後會自動重新計算任務截止日。
+              </p>
+            </div>
+
+            {/* 按鈕 */}
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowPlanEditor(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSavePlan}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                儲存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

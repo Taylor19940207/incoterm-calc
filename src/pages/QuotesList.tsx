@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
@@ -32,6 +32,8 @@ const QuotesList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [quotesList, setQuotesList] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedQuotes, setSelectedQuotes] = useState<Set<string>>(new Set());
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   // 載入報價列表
   useEffect(() => {
@@ -49,6 +51,21 @@ const QuotesList: React.FC = () => {
 
     loadQuotes();
   }, [quotes]);
+
+  // 點擊外部關閉下拉選單
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (openDropdown && !target.closest('.dropdown-container')) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdown]);
 
   const deleteQuote = async (id: string) => {
     if (window.confirm('確定要刪除這筆報價嗎？')) {
@@ -139,6 +156,48 @@ const QuotesList: React.FC = () => {
       case 'lost': return t['已流失'] || '已流失';
       default: return status;
     }
+  };
+
+  // 選擇功能
+  const handleSelectQuote = (quoteId: string) => {
+    const newSelected = new Set(selectedQuotes);
+    if (newSelected.has(quoteId)) {
+      newSelected.delete(quoteId);
+    } else {
+      newSelected.add(quoteId);
+    }
+    setSelectedQuotes(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedQuotes.size === filteredQuotes.length) {
+      setSelectedQuotes(new Set());
+    } else {
+      setSelectedQuotes(new Set(filteredQuotes.map(q => q.id)));
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = 'JPY') => {
+    return `${currency} ${amount.toLocaleString()}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '未知';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('zh-TW', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // 下拉選單處理
+  const handleDropdownToggle = (quoteId: string) => {
+    setOpenDropdown(openDropdown === quoteId ? null : quoteId);
+  };
+
+  const handleDropdownClose = () => {
+    setOpenDropdown(null);
   };
 
   const getTotalStats = () => {
@@ -266,123 +325,245 @@ const QuotesList: React.FC = () => {
         </div>
       </div>
 
+      {/* Batch Actions Toolbar */}
+      {selectedQuotes.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <span className="text-sm font-medium text-blue-700">
+                已選擇 {selectedQuotes.size} 個報價
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  // 批量發送功能
+                  const selectedQuotesList = quotesList.filter(q => selectedQuotes.has(q.id));
+                  const draftQuotes = selectedQuotesList.filter(q => q.status === 'draft');
+                  if (draftQuotes.length > 0) {
+                    if (window.confirm(`確定要發送 ${draftQuotes.length} 個草稿報價嗎？`)) {
+                      draftQuotes.forEach(quote => {
+                        updateQuoteStatus(quote.id, 'sent');
+                      });
+                      setSelectedQuotes(new Set());
+                    }
+                  } else {
+                    alert('沒有可發送的草稿報價');
+                  }
+                }}
+                className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+              >
+                批量發送
+              </button>
+              <button
+                onClick={() => {
+                  // 批量刪除功能
+                  if (window.confirm(`確定要刪除 ${selectedQuotes.size} 個報價嗎？`)) {
+                    selectedQuotes.forEach(quoteId => {
+                      deleteQuote(quoteId);
+                    });
+                    setSelectedQuotes(new Set());
+                  }
+                }}
+                className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+              >
+                批量刪除
+              </button>
+              <button
+                onClick={() => setSelectedQuotes(new Set())}
+                className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+              >
+                取消選擇
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quotes Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['客戶'] || '客戶'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['貿易條件'] || '貿易條件'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['報價金額'] || '報價金額'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t['毛利率'] || '毛利率'}</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['狀態'] || '狀態'}</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['建立時間'] || '建立時間'}</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{t['操作'] || '操作'}</th>
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedQuotes.size === filteredQuotes.length && filteredQuotes.length > 0}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">報價單號</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">客戶</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">貿易條件</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">報價金額</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">建立日期</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期日期</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredQuotes.map((quote) => (
-                <tr key={quote.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{quote?.meta?.customerName || (t['未知'] || '未知')}</div>
-                        <div className="text-sm text-gray-500">#{quote?.code || (t['未知'] || '未知')}</div>
+              {filteredQuotes.map((quote) => {
+                const isSelected = selectedQuotes.has(quote.id);
+                return (
+                  <tr 
+                    key={quote.id} 
+                    className={`transition-colors ${
+                      isSelected 
+                        ? 'bg-blue-50 border-l-4 border-blue-500' 
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleSelectQuote(quote.id)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        #{quote?.code || quote.id.slice(-6)}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quote?.inputs?.incotermTo || (t['未知'] || '未知')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {(() => {
-                      const currency = quote?.inputs?.currency || 'JPY';
-                      const amount = quote?.derived?.totals?.totalQuote || 0;
-                      return `${currency} ${amount.toLocaleString()}`;
-                    })()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {(() => {
-                      const totalQuote = quote?.derived?.totals?.totalQuote || 0;
-                      const totalCost = quote?.derived?.totals?.shipmentCostInclGoods || 0;
-                      if (totalQuote > 0) {
-                        return ((totalQuote - totalCost) / totalQuote * 100).toFixed(1);
-                      }
-                      return '0.0';
-                    })()}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(quote?.status || 'draft')}`}>
-                      {getStatusText(quote?.status || 'draft')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                      {quote?.createdAt || '未知'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => navigate(`/quotes/${quote?.id}`)}
-                        className="text-blue-600 hover:text-blue-900 flex items-center px-2 py-1 rounded-lg hover:bg-blue-50 transition-all duration-200"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        {t['查看'] || '查看'}
-                      </button>
-                      <button
-                        onClick={() => navigate(`/quotes/${quote?.id}/edit`)}
-                        className="text-gray-600 hover:text-gray-900 flex items-center px-2 py-1 rounded-lg hover:bg-gray-50 transition-all duration-200"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        {t['編輯'] || '編輯'}
-                      </button>
-                      
-                      {/* 狀態更新按鈕 */}
-                      {quote?.status === 'draft' && (
-                        <button
-                          onClick={() => updateQuoteStatus(quote?.id || '', 'sent')}
-                          className="text-green-600 hover:text-green-900 flex items-center px-2 py-1 rounded-lg hover:bg-green-50 transition-all duration-200"
-                          title="發送報價"
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {quote?.meta?.customerName || (t['未知'] || '未知')}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {quote?.inputs?.incotermTo || (t['未知'] || '未知')}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                      {formatCurrency(
+                        quote?.derived?.totals?.totalQuote || 0,
+                        quote?.inputs?.currency || 'JPY'
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(quote?.status || 'draft')}`}>
+                        {getStatusText(quote?.status || 'draft')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(quote?.createdAt || '')}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {(() => {
+                        // 計算到期日期（建立日期 + 30天）
+                        if (quote?.createdAt) {
+                          const createdDate = new Date(quote.createdAt);
+                          const dueDate = new Date(createdDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+                          return formatDate(dueDate.toISOString());
+                        }
+                        return '未知';
+                      })()}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <div className="relative dropdown-container">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDropdownToggle(quote.id);
+                          }}
+                          className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
                         >
-                          <Send className="h-4 w-4 mr-1" />
-                          發送
+                          <MoreVertical className="h-4 w-4" />
                         </button>
-                      )}
-                      
-                      {quote?.status === 'sent' && (
-                        <>
-                          <button
-                            onClick={() => updateQuoteStatus(quote?.id || '', 'won')}
-                            className="text-green-600 hover:text-green-900 flex items-center px-2 py-1 rounded-lg hover:bg-green-50 transition-all duration-200"
-                            title="標記為成交"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            成交
-                          </button>
-                          <button
-                            onClick={() => updateQuoteStatus(quote?.id || '', 'lost')}
-                            className="text-red-600 hover:text-red-900 flex items-center px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-200"
-                            title="標記為流失"
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            流失
-                          </button>
-                        </>
-                      )}
-                      
-                      <button 
-                        onClick={() => deleteQuote(quote?.id || '')}
-                        className="text-red-600 hover:text-red-900 flex items-center px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-200"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        {t['刪除'] || '刪除'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        
+                        {openDropdown === quote.id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                            <div className="py-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/quotes/${quote?.id}`);
+                                  handleDropdownClose();
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              >
+                                <Eye className="h-4 w-4 mr-3" />
+                                {t['查看'] || '查看'}
+                              </button>
+                              
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/quotes/${quote?.id}/edit`);
+                                  handleDropdownClose();
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              >
+                                <Edit className="h-4 w-4 mr-3" />
+                                {t['編輯'] || '編輯'}
+                              </button>
+                              
+                              {/* 狀態更新按鈕 */}
+                              {quote?.status === 'draft' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateQuoteStatus(quote?.id || '', 'sent');
+                                    handleDropdownClose();
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+                                >
+                                  <Send className="h-4 w-4 mr-3" />
+                                  發送
+                                </button>
+                              )}
+                              
+                              {quote?.status === 'sent' && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuoteStatus(quote?.id || '', 'won');
+                                      handleDropdownClose();
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-3" />
+                                    成交
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuoteStatus(quote?.id || '', 'lost');
+                                      handleDropdownClose();
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-3" />
+                                    流失
+                                  </button>
+                                </>
+                              )}
+                              
+                              <div className="border-t border-gray-100"></div>
+                              
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteQuote(quote?.id || '');
+                                  handleDropdownClose();
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4 mr-3" />
+                                {t['刪除'] || '刪除'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
